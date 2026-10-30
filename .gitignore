@@ -6,3 +6,4 @@ caddy/data/
 caddy/config/
 data/
 models/
+caddy/certs/

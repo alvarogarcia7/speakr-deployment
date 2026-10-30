@@ -3,16 +3,17 @@
 Library of recordings with a transcript editor (find and replace, speaker per segment), click a line to jump there, highlight following playback. Transcription runs locally with WhisperX; models are stored in `./models`. Only Caddy is reachable from outside, behind a username and password.
 
 ```bash
-make init             # creates .env with a random Speakr admin password and secret key
-make password         # the username and password Caddy asks for (outer lock)
+make init             # creates .env with random Speakr admin password and secret key
+make certs            # local CA and HTTPS certificate in caddy/certs (install ca.crt on your machines)
+make pass             # Caddy login: username (default admin) and a generated 24-character password (alias of make password)
 make build            # pulls the images (WhisperX is several GB)
-make start            # open PUBLIC_URL from .env, default http://<server>:8086
-make admin-password   # the Speakr login (inner lock): admin + generated password
+make start            # open PUBLIC_URL from .env, default https://localhost:8446
+make admin-password   # URL, email and password for the Speakr login
 make logs             # the first start downloads the Whisper model
 make stop
 ```
 
-Needs Docker with the Compose v2 plugin (`docker compose version`). Without it, install the plugin, for example for one user: `mkdir -p ~/.docker/cli-plugins` and put the `docker-compose` binary from the Compose releases there.
+Needs Docker with the Compose v2 plugin (`docker compose version`). Without it, install the plugin, for example for one user: `mkdir -p ~/.docker/cli-plugins` and put the `docker-compose` binary from the Compose releases there. `make password` and `make certs` need `python3` and `openssl` on the host.
 
 ## Settings worth knowing (`.env`)
 
@@ -54,7 +55,14 @@ make initd-uninstall
 
 ## HTTPS
 
-Set `SITE_ADDRESS` to your domain, `HTTP_PORT=80`, `HTTPS_PORT=443`, `PUBLIC_URL=https://<domain>` and `SESSION_COOKIE_SECURE=true`. Without HTTPS the Caddy password travels in clear text, so use plain HTTP only over Tailscale or a trusted LAN.
+Caddy serves HTTPS on `HTTPS_PORT` (default 8446) with a certificate from a local CA that `make certs` creates in `caddy/certs/` (`scripts/gen-certs.sh`):
+
+- `ca.crt` is the public part of the CA. Install it on each machine that opens Speakr (macOS Keychain, Windows "Trusted Root Certification Authorities", or the browser's certificate store). Without it the browser warns about the certificate.
+- `ca.key` and `server.key` stay private and are git-ignored.
+- The certificate names are `localhost`, `127.0.0.1`, `::1`, the machine's hostname, `SITE_ADDRESS`, and any names in `CERT_HOSTS` (for example `CERT_HOSTS=speakr.lan make certs`). Run `FORCE=1 make certs` after changing names, then `make restart`.
+- Plain HTTP on `HTTP_PORT` redirects to the HTTPS address.
+
+For a public domain with a trusted certificate (Let's Encrypt), this setup is not enough: remove `auto_https off` and the `tls` line from `caddy/Caddyfile`, use the domain as `SITE_ADDRESS`, and point its DNS at the server with ports 80 and 443 open.
 
 ## Notes
 
@@ -70,3 +78,7 @@ To convert a text file by hand:
 ```bash
 python3 scripts/spoken_punctuation.py < transcript.txt > punctuated.txt
 ```
+
+## Chars/s in the ASR editor
+
+The "Edit ASR Transcription" table has a Chars/s column: the sentence's character count divided by its duration. Normal speech is about 10 to 20. Red means above 25 (too fast: wrong timing or merged text), amber means below 5 (too slow: text padded over silence or a missing word). The column updates as you edit. It is defined in `speakr-patches/templates/modals/asr-editor-modal.html`, which the `app` image builds on top of Speakr's own image.

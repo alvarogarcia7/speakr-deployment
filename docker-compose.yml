@@ -8,7 +8,12 @@ name: speakr
 
 services:
   app:
-    image: learnedmachine/speakr:${SPEAKR_VERSION:-lite}
+    # Speakr image plus speakr-patches/ (adds the Chars/s column to the ASR editor)
+    build:
+      context: ./speakr-patches
+      args:
+        - SPEAKR_VERSION=${SPEAKR_VERSION:-lite}
+    image: speakr-patched:${SPEAKR_VERSION:-lite}
     container_name: speakr
     restart: unless-stopped
     env_file:
@@ -71,7 +76,8 @@ services:
       - "${HTTP_PORT:-8086}:80"
       - "${HTTPS_PORT:-8446}:443"
     environment:
-      - SITE_ADDRESS=${SITE_ADDRESS:-:80}
+      - SITE_ADDRESS=${SITE_ADDRESS:-localhost}
+      - PUBLIC_HTTPS_PORT=${HTTPS_PORT:-8446}
       - UPSTREAM=app:8899
     volumes:
       # Named volume filled by `make caddy-sync` (run by make start and make password),
