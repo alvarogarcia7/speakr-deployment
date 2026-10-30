@@ -52,12 +52,13 @@ start: setup ## Start Speakr, WhisperX and Caddy in the background
 	$(COMPOSE) up -d --build
 	@if [ "$(WAIT)" != 0 ]; then \
 		echo "Waiting for WhisperX to download and load the models (first start can take several minutes)..."; \
-		n=0; while ! { [ "$$(docker inspect -f '{{.State.Health.Status}}' speakr-whisperx 2>/dev/null)" = healthy ] && docker logs speakr-whisperx 2>&1 | grep -q 'preloaded model'; }; do \
+		started=$$(docker inspect -f '{{.State.StartedAt}}' speakr-whisperx 2>/dev/null); \
+		n=0; while ! { [ "$$(docker inspect -f '{{.State.Health.Status}}' speakr-whisperx 2>/dev/null)" = healthy ] && docker logs --since "$$started" speakr-whisperx 2>&1 | grep -q 'preloaded model'; }; do \
 			[ "$$(docker inspect -f '{{.State.Health.Status}}' speakr-whisperx 2>/dev/null)" = unhealthy ] && { echo "WhisperX is unhealthy: see make logs"; exit 1; }; \
 			n=$$((n+1)); [ $$n -gt 240 ] && { echo "Timed out after 40 minutes waiting for WhisperX: see make logs"; exit 1; }; \
 			sleep 10; \
 		done; \
-		echo "Models ready: $$(docker logs speakr-whisperx 2>&1 | grep -o 'preloaded model [^ ]*' | tail -1)"; \
+		echo "Models ready: $$(docker logs --since "$$started" speakr-whisperx 2>&1 | grep -o 'preloaded model [^ ]*' | tail -1)"; \
 	fi
 	@echo "speakr: $$(grep -E '^PUBLIC_URL=' .env | cut -d= -f2)"
 

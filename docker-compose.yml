@@ -2,7 +2,7 @@
 # Everything is stored next to this file:
 #   ./data/uploads   -> uploaded audio
 #   ./data/instance  -> database, settings, generated secret key
-#   ./models         -> Whisper, alignment and speaker models (Hugging Face cache)
+#   volume speakr-models -> Whisper, alignment and speaker models (Hugging Face cache)
 #   ./caddy          -> Caddyfile, password file, certificates
 name: speakr
 
@@ -66,7 +66,8 @@ services:
       - ALLOWED_MODELS=${WHISPER_ALLOWED_MODELS:-}
       - MAX_FILE_SIZE_MB=1000
     volumes:
-      - ./models:/.cache
+      # Named volume: Whisper, alignment and speaker models; survives container recreation
+      - speakr-models:/.cache
 
   caddy:
     image: caddy:${CADDY_VERSION:-2.10}
@@ -91,3 +92,5 @@ services:
 volumes:
   caddy-etc:
     name: speakr-caddy-etc
+  speakr-models:
+    name: speakr-models
