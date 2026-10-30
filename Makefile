@@ -40,6 +40,7 @@ build: init ## Pull the images
 	$(COMPOSE) pull
 
 start: init ## Start Speakr, WhisperX and Caddy in the background
+	@grep -qE '^SITE_ADDRESS=[A-Za-z0-9][A-Za-z0-9.-]*$$' .env || { echo "SITE_ADDRESS in .env must be a host name such as localhost (old values like :80 are rejected by Caddy)."; echo "Set SITE_ADDRESS=localhost, PUBLIC_URL=https://localhost:8446 and SESSION_COOKIE_SECURE=true in .env, then run make start."; exit 1; }
 	@test -f caddy/auth.caddy || { echo "No login set yet: run 'make password' first"; exit 1; }
 	@test -f caddy/certs/server.crt || $(MAKE) --no-print-directory certs
 	@$(MAKE) --no-print-directory caddy-sync
