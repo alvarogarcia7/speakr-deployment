@@ -11,6 +11,7 @@ help: ## List the available goals
 setup:
 	@if [ ! -f .env ]; then cp .env.example .env && sed -i "s/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$$(head -c 18 /dev/urandom | base64 | tr -dc A-Za-z0-9)/; s/^SECRET_KEY=.*/SECRET_KEY=$$(head -c 48 /dev/urandom | base64 | tr -dc A-Za-z0-9)/" .env && echo "Created .env, review it. Speakr login: make admin-password"; fi
 	@mkdir -p data models caddy/data caddy/config caddy/certs
+	@docker volume inspect speakr-models >/dev/null 2>&1 || docker volume create speakr-models >/dev/null
 
 init: ## Create .env and the folders; warns if .env already exists (it is never changed)
 	@if [ -f .env ]; then echo "WARNING: .env already exists and was NOT altered. Review it manually against .env.example (SITE_ADDRESS, PUBLIC_URL, SESSION_COOKIE_SECURE, HTTPS_PORT)."; fi
@@ -37,9 +38,11 @@ caddy-sync: setup ## Copy Caddyfile, login and certificate into the Caddy config
 	@test -f caddy/Caddyfile -a -f caddy/auth.caddy -a -f caddy/certs/server.crt -a -f caddy/certs/server.key || { echo "Missing Caddy files: run 'make password' and 'make certs' first"; exit 1; }
 	@$(COMPOSE) up --no-start caddy >/dev/null
 	@docker run --rm -v speakr-caddy-etc:/etc/caddy --entrypoint mkdir $(CADDY_IMAGE) -p /etc/caddy/certs
+	@docker run --rm -v speakr-caddy-etc:/etc/caddy --entrypoint mkdir $(CADDY_IMAGE) -p /etc/caddy/www
 	@for f in Caddyfile auth.caddy certs/server.crt certs/server.key; do \
 		docker run --rm -i -v speakr-caddy-etc:/etc/caddy --entrypoint sh $(CADDY_IMAGE) -c "cat > /etc/caddy/$$f" < caddy/$$f || exit 1; \
 	done
+	@docker run --rm -i -v speakr-caddy-etc:/etc/caddy --entrypoint sh $(CADDY_IMAGE) -c 'cat > /etc/caddy/www/waiting.html' < caddy/www/waiting.html
 
 build: setup ## Pull the images
 	$(COMPOSE) pull
@@ -51,7 +54,7 @@ start: setup ## Start Speakr, WhisperX and Caddy in the background
 	@$(MAKE) --no-print-directory caddy-sync
 	$(COMPOSE) up -d --build
 	@if [ "$(WAIT)" != 0 ]; then \
-		echo "Waiting for WhisperX to download and load the models (first start can take several minutes)..."; \
+		echo "Waiting for WhisperX to download and load the models (first start can take several minutes)..."; echo "While this runs, $$(grep -E '^PUBLIC_URL=' .env | cut -d= -f2-) shows a status page."; \
 		started=$$(docker inspect -f '{{.State.StartedAt}}' speakr-whisperx 2>/dev/null); \
 		n=0; while ! { [ "$$(docker inspect -f '{{.State.Health.Status}}' speakr-whisperx 2>/dev/null)" = healthy ] && docker logs --since "$$started" speakr-whisperx 2>&1 | grep -q 'preloaded model'; }; do \
 			[ "$$(docker inspect -f '{{.State.Health.Status}}' speakr-whisperx 2>/dev/null)" = unhealthy ] && { echo "WhisperX is unhealthy: see make logs"; exit 1; }; \

@@ -15,6 +15,16 @@ https://{$SITE_ADDRESS} {
 	# Written by `make password`: basic_auth { <user> <bcrypt hash> }
 	import /etc/caddy/auth.caddy
 
+	# While Speakr is not answering yet (502/503/504), show the status page from caddy/www
+	handle_errors {
+		@starting expression {http.error.status_code} in [502, 503, 504]
+		handle @starting {
+			root * /etc/caddy/www
+			rewrite * /waiting.html
+			file_server
+		}
+	}
+
 	encode zstd gzip
 	request_body {
 		max_size 2GB

@@ -94,3 +94,4 @@ volumes:
     name: speakr-caddy-etc
   speakr-models:
     name: speakr-models
+    external: true   # created by make setup
