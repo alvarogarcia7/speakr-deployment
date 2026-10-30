@@ -60,3 +60,11 @@ Set `SITE_ADDRESS` to your domain, `HTTP_PORT=80`, `HTTPS_PORT=443`, `PUBLIC_URL
 
 - WhisperX ASR service is alpha software and its upstream targets NVIDIA GPUs. CPU mode works but long recordings are slow.
 - Speakr is AGPL-3.0 with a paid commercial license; self-hosting for yourself is covered by the AGPL.
+
+## Spoken punctuation
+
+WhisperX writes "period", "comma" and "new line" as words when the speaker says them. To turn them into symbols, pipe a transcript through `scripts/spoken_punctuation.py`:
+
+```bash
+python3 scripts/spoken_punctuation.py < transcript.txt > punctuated.txt
+```
