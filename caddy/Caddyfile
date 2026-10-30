@@ -1,17 +1,11 @@
-# HTTPS with the local certificate from `make certs` (scripts/gen-certs.sh).
-# Certificate and key are copied into /etc/caddy/certs by `make caddy-sync`.
-# Plain HTTP on port 80 only redirects to the HTTPS port.
+# Speakr behind Caddy: basic auth (caddy/auth.caddy), status page while the app starts.
+# HTTP (HTTP_PORT) and HTTPS (HTTPS_PORT) serve the same site; neither redirects to the other.
+# The certificate for HTTPS comes from `make certs` (caddy/certs), copied by `make caddy-sync`.
 {
 	auto_https off
 }
 
-http://{$SITE_ADDRESS} {
-	redir https://{$SITE_ADDRESS}:{$PUBLIC_HTTPS_PORT}{uri} permanent
-}
-
-https://{$SITE_ADDRESS} {
-	tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key
-
+(speakr) {
 	# Written by `make password`: basic_auth { <user> <bcrypt hash> }
 	import /etc/caddy/auth.caddy
 
@@ -30,4 +24,13 @@ https://{$SITE_ADDRESS} {
 		max_size 2GB
 	}
 	reverse_proxy {$UPSTREAM}
+}
+
+http://{$SITE_ADDRESS} {
+	import speakr
+}
+
+https://{$SITE_ADDRESS} {
+	tls /etc/caddy/certs/server.crt /etc/caddy/certs/server.key
+	import speakr
 }

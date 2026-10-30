@@ -60,7 +60,7 @@ Caddy serves HTTPS on `HTTPS_PORT` (default 8446) with a certificate from a loca
 - `ca.crt` is the public part of the CA. Install it on each machine that opens Speakr (macOS Keychain, Windows "Trusted Root Certification Authorities", or the browser's certificate store). Without it the browser warns about the certificate.
 - `ca.key` and `server.key` stay private and are git-ignored.
 - The certificate names are `localhost`, `127.0.0.1`, `::1`, the machine's hostname and `SITE_ADDRESS` from `.env`. To add a name, set `SITE_ADDRESS` in `.env`, then run `FORCE=1 make certs` and `make restart`. `make certs` prints the `SITE_ADDRESS` it uses.
-- Plain HTTP on `HTTP_PORT` redirects to the HTTPS address.
+- Plain HTTP on `HTTP_PORT` serves the same Speakr site without TLS. It does not redirect. Logins over plain HTTP send the Caddy and Speakr passwords in clear text, and with `SESSION_COOKIE_SECURE=true` Speakr's session cookie is not stored over HTTP, so logging in over HTTP needs `SESSION_COOKIE_SECURE=false`.
 
 For a public domain with a trusted certificate (Let's Encrypt), this setup is not enough: remove `auto_https off` and the `tls` line from `caddy/Caddyfile`, use the domain as `SITE_ADDRESS`, and point its DNS at the server with ports 80 and 443 open.
 
