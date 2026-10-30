@@ -1,7 +1,7 @@
 COMPOSE := docker compose
 CADDY_IMAGE := caddy:2.10
 
-.PHONY: help init password build start stop restart logs status clean
+.PHONY: help init password caddy-sync build start stop restart logs status clean
 
 help: ## List the available goals
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
@@ -16,13 +16,22 @@ password: init ## Set the username and password Caddy asks for
 	h=$$(docker run --rm $(CADDY_IMAGE) caddy hash-password --plaintext "$$p"); \
 	printf 'basic_auth {\n\t%s %s\n}\n' "$$u" "$$h" > caddy/auth.caddy; \
 	echo "Saved caddy/auth.caddy for user $$u"; \
+	$(MAKE) --no-print-directory caddy-sync; \
 	$(COMPOSE) exec caddy caddy reload --config /etc/caddy/Caddyfile 2>/dev/null && echo "Caddy reloaded" || true
+
+caddy-sync: init ## Copy caddy/Caddyfile and caddy/auth.caddy into the Caddy config volume
+	@test -f caddy/Caddyfile -a -f caddy/auth.caddy || { echo "Missing caddy/Caddyfile or caddy/auth.caddy"; exit 1; }
+	@$(COMPOSE) up --no-start caddy >/dev/null
+	@for f in Caddyfile auth.caddy; do \
+		docker run --rm -i -v speakr-caddy-etc:/etc/caddy --entrypoint sh $(CADDY_IMAGE) -c "cat > /etc/caddy/$$f" < caddy/$$f || exit 1; \
+	done
 
 build: init ## Pull the images
 	$(COMPOSE) pull
 
 start: init ## Start Speakr, WhisperX and Caddy in the background
 	@test -f caddy/auth.caddy || { echo "No password set yet: run 'make password' first"; exit 1; }
+	@$(MAKE) --no-print-directory caddy-sync
 	$(COMPOSE) up -d
 	@echo "speakr: $$(grep -E '^PUBLIC_URL=' .env | cut -d= -f2)  (first start downloads models and can take several minutes)"
 

@@ -58,7 +58,8 @@ services:
       - SITE_ADDRESS=${SITE_ADDRESS:-:80}
       - UPSTREAM=app:8899
     volumes:
-      # Named volume: the daemon here cannot read bind-mounted files, so make start copies them in
+      # Named volume filled by `make caddy-sync` (run by make start and make password),
+      # because some Docker daemons cannot read single bind-mounted files
       - caddy-etc:/etc/caddy:ro
       - ./caddy/data:/data
       - ./caddy/config:/config
@@ -67,3 +68,4 @@ services:
 
 volumes:
   caddy-etc:
+    name: speakr-caddy-etc

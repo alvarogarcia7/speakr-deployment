@@ -12,6 +12,8 @@ make logs             # the first start downloads the Whisper model
 make stop
 ```
 
+Needs Docker with the Compose v2 plugin (`docker compose version`). Without it, install the plugin, for example for one user: `mkdir -p ~/.docker/cli-plugins` and put the `docker-compose` binary from the Compose releases there.
+
 ## Settings worth knowing (`.env`)
 
 - `WHISPER_MODEL`: model loaded at start, default `small`. On CPU, `small` or `medium` is practical; `large-v3` is slow without a GPU. `WHISPER_ALLOWED_MODELS` limits which ones Speakr may pick per upload.
@@ -25,6 +27,7 @@ make stop
 - `./models`: Whisper, alignment and speaker models (Hugging Face cache). Survives restarts and upgrades.
 - `./data`: Speakr database, settings and uploaded audio. Back this up.
 - `./caddy/auth.caddy`: the Caddy username and bcrypt hash. Run `make password` again to change it.
+- `caddy/Caddyfile` and `caddy/auth.caddy` are copied into the `speakr-caddy-etc` volume by `make caddy-sync`, which `make start` and `make password` run. After editing either file, run `make restart`.
 
 ## Start automatically at boot
 
