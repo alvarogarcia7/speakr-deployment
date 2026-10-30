@@ -17,7 +17,7 @@ init: ## Create .env and the folders; warns if .env already exists (it is never 
 	@if [ -f .env ]; then echo "WARNING: .env already exists and was NOT altered. Review it manually against .env.example (SITE_ADDRESS, PUBLIC_URL, SESSION_COOKIE_SECURE, HTTPS_PORT)."; fi
 	@$(MAKE) --no-print-directory setup
 
-certs: setup ## Create the local CA and the HTTPS certificate in caddy/certs (FORCE=1 to renew)
+certs: setup ## Create the local CA and the HTTPS certificate for SITE_ADDRESS in .env (FORCE=1 to renew)
 	@FORCE=$(FORCE) scripts/gen-certs.sh
 	@echo "Install caddy/certs/ca.crt on the machines that open Speakr, then run 'make restart'."
 

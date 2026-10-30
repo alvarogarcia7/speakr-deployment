@@ -4,9 +4,9 @@
 #   caddy/certs/ca.crt, ca.key      CA (ca.key stays private; ca.crt is what clients trust)
 #   caddy/certs/server.crt, .key    server certificate for Caddy, signed by the CA
 #
-# Names in the certificate: localhost, 127.0.0.1, ::1, this machine's hostname,
-# SITE_ADDRESS from .env, and any extra names in CERT_HOSTS (comma separated).
-# Run with FORCE=1 to recreate the server certificate (for example after adding a name).
+# Names in the certificate: localhost, 127.0.0.1, ::1, this machine's hostname and
+# SITE_ADDRESS from .env (the only name you set). Change SITE_ADDRESS, then run with
+# FORCE=1 to recreate the server certificate.
 # The CA is kept unless it is missing, so clients that trust ca.crt stay valid.
 set -euo pipefail
 
@@ -18,14 +18,19 @@ umask 077
 env_value() { grep -E "^$1=" .env 2>/dev/null | tail -1 | cut -d= -f2- || true; }
 
 names=(localhost "$(hostname)")
-site=$(env_value SITE_ADDRESS); [ -n "$site" ] && names+=("$site")
-IFS=',' read -r -a extra <<< "${CERT_HOSTS:-}"
-for n in "${extra[@]}"; do [ -n "$n" ] && names+=("$(echo "$n" | xargs)"); done
+site=$(env_value SITE_ADDRESS)
+case "$site" in
+  ""|:*) echo "SITE_ADDRESS in .env must be a host name or IP (current: '${site}'). Set it, then run make certs again."; exit 1 ;;
+esac
+echo "Generating the server certificate for SITE_ADDRESS=${site} (from .env)"
+names+=("$site")
+if [[ "$site" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then site_san="IP:$site"; else site_san="DNS:$site"; fi
 
 san="subjectAltName=DNS:localhost,IP:127.0.0.1,IP:0:0:0:0:0:0:0:1"
 for n in "${names[@]}"; do
   case "$n" in
-    localhost|""|:*|*[!A-Za-z0-9.-]*) ;;   # skip empty, port-only and non-hostname values
+    localhost|"") ;;
+    "$site") san+=",$site_san" ;;
     *) san+=",DNS:$n" ;;
   esac
 done
