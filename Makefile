@@ -26,8 +26,8 @@ password: setup ## Set the Caddy login: username (default admin) and a generated
 	p=$$(python3 scripts/gen_password.py $(PASS_LENGTH)) || exit 1; \
 	h=$$(docker run --rm $(CADDY_IMAGE) caddy hash-password --plaintext "$$p") || exit 1; \
 	printf 'basic_auth {\n\t%s %s\n}\n' "$$u" "$$h" > caddy/auth.caddy; \
-	printf 'caddy_user=%s\ncaddy_password=%s\n' "$$u" "$$p" > .caddy-credentials; chmod 600 .caddy-credentials; \
-	echo ""; echo "Caddy login (copy it now; also saved in .caddy-credentials):"; \
+	sed -i '/^CADDY_USER=/d;/^CADDY_PASSWORD=/d' .env; printf 'CADDY_USER=%s\nCADDY_PASSWORD=%s\n' "$$u" "$$p" >> .env; \
+	echo ""; echo "Caddy login (also saved in .env as CADDY_USER and CADDY_PASSWORD):"; \
 	echo "  Username: $$u"; echo "  Password: $$p"; echo ""; \
 	$(MAKE) --no-print-directory caddy-sync; \
 	$(COMPOSE) exec caddy caddy reload --config /etc/caddy/Caddyfile >/dev/null 2>&1 && echo "Caddy reloaded" || true
@@ -77,9 +77,11 @@ status: ## Show container state and disk used by data and models
 	$(COMPOSE) ps
 	@du -sh data models 2>/dev/null || true
 
-admin-password: ## Show the Speakr login: URL, email and password
+admin-password: ## Show the logins from .env: Speakr (URL, email, password) and Caddy (user, password)
 	@url=$$(grep -E '^PUBLIC_URL=' .env | cut -d= -f2-); email=$$(grep -E '^ADMIN_EMAIL=' .env | cut -d= -f2-); pw=$$(grep -E '^ADMIN_PASSWORD=' .env | cut -d= -f2-); \
-	echo "Speakr login:"; echo "  URL:      $$url"; echo "  Email:    $$email"; echo "  Password: $$pw"; echo "  Log in with the email above, not a username."
+	cu=$$(grep -E '^CADDY_USER=' .env | cut -d= -f2-); cp=$$(grep -E '^CADDY_PASSWORD=' .env | cut -d= -f2-); \
+	echo "Speakr login:"; echo "  URL:      $$url"; echo "  Email:    $$email"; echo "  Password: $$pw"; echo "  Log in with the email above, not a username."; \
+	echo "Caddy login (basic auth, asked before Speakr):"; echo "  User:     $${cu:-not set, run make pass}"; echo "  Password: $${cp:-not set, run make pass}"
 
 clean: stop ## Remove the containers (keeps data, models and the password)
 	$(COMPOSE) --profile '*' rm -f

@@ -5,10 +5,10 @@ Library of recordings with a transcript editor (find and replace, speaker per se
 ```bash
 make init             # creates .env with random Speakr admin password and secret key
 make certs            # local CA and HTTPS certificate in caddy/certs (install ca.crt on your machines)
-make pass             # Caddy login: username (default admin) and a generated 24-character password (alias of make password)
+make pass             # Caddy login: username (default admin) and a generated 24-character password, saved in .env
 make build            # pulls the images (WhisperX is several GB)
 make start            # open PUBLIC_URL from .env, default https://localhost:8446
-make admin-password   # URL, email and password for the Speakr login
+make admin-password   # the Speakr and Caddy logins from .env
 make logs             # the first start downloads the Whisper model
 make stop
 ```
