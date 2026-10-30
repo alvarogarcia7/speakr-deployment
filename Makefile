@@ -2,20 +2,24 @@ COMPOSE := docker compose
 CADDY_IMAGE := caddy:2.10
 PASS_LENGTH := 24
 
-.PHONY: help init certs password pass caddy-sync build start stop restart logs status admin-password clean
+.PHONY: help init setup certs password pass caddy-sync build start stop restart logs status admin-password clean
 
 help: ## List the available goals
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-18s %s\n", $$1, $$2}'
 
-init: ## Create .env and the data, models and caddy folders
-	@test -f .env || (cp .env.example .env && sed -i "s/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$$(head -c 18 /dev/urandom | base64 | tr -dc A-Za-z0-9)/; s/^SECRET_KEY=.*/SECRET_KEY=$$(head -c 48 /dev/urandom | base64 | tr -dc A-Za-z0-9)/" .env && echo "Created .env, review it. Speakr login: make admin-password")
+setup:
+	@if [ ! -f .env ]; then cp .env.example .env && sed -i "s/^ADMIN_PASSWORD=.*/ADMIN_PASSWORD=$$(head -c 18 /dev/urandom | base64 | tr -dc A-Za-z0-9)/; s/^SECRET_KEY=.*/SECRET_KEY=$$(head -c 48 /dev/urandom | base64 | tr -dc A-Za-z0-9)/" .env && echo "Created .env, review it. Speakr login: make admin-password"; fi
 	@mkdir -p data models caddy/data caddy/config caddy/certs
 
-certs: init ## Create the local CA and the HTTPS certificate in caddy/certs (FORCE=1 to renew)
+init: ## Create .env and the folders; warns if .env already exists (it is never changed)
+	@if [ -f .env ]; then echo "WARNING: .env already exists and was NOT altered. Review it manually against .env.example (SITE_ADDRESS, PUBLIC_URL, SESSION_COOKIE_SECURE, HTTPS_PORT)."; fi
+	@$(MAKE) --no-print-directory setup
+
+certs: setup ## Create the local CA and the HTTPS certificate in caddy/certs (FORCE=1 to renew)
 	@FORCE=$(FORCE) scripts/gen-certs.sh
 	@echo "Install caddy/certs/ca.crt on the machines that open Speakr, then run 'make restart'."
 
-password: init ## Set the Caddy login: username (default admin) and a generated 24-character password
+password: setup ## Set the Caddy login: username (default admin) and a generated 24-character password
 	@printf "Username [admin]: "; read u; u=$${u:-admin}; \
 	p=$$(python3 scripts/gen_password.py $(PASS_LENGTH)) || exit 1; \
 	h=$$(docker run --rm $(CADDY_IMAGE) caddy hash-password --plaintext "$$p") || exit 1; \
@@ -28,7 +32,7 @@ password: init ## Set the Caddy login: username (default admin) and a generated 
 
 pass: password ## Alias of make password
 
-caddy-sync: init ## Copy Caddyfile, login and certificate into the Caddy config volume
+caddy-sync: setup ## Copy Caddyfile, login and certificate into the Caddy config volume
 	@test -f caddy/Caddyfile -a -f caddy/auth.caddy -a -f caddy/certs/server.crt -a -f caddy/certs/server.key || { echo "Missing Caddy files: run 'make password' and 'make certs' first"; exit 1; }
 	@$(COMPOSE) up --no-start caddy >/dev/null
 	@docker run --rm -v speakr-caddy-etc:/etc/caddy --entrypoint mkdir $(CADDY_IMAGE) -p /etc/caddy/certs
@@ -36,10 +40,10 @@ caddy-sync: init ## Copy Caddyfile, login and certificate into the Caddy config 
 		docker run --rm -i -v speakr-caddy-etc:/etc/caddy --entrypoint sh $(CADDY_IMAGE) -c "cat > /etc/caddy/$$f" < caddy/$$f || exit 1; \
 	done
 
-build: init ## Pull the images
+build: setup ## Pull the images
 	$(COMPOSE) pull
 
-start: init ## Start Speakr, WhisperX and Caddy in the background
+start: setup ## Start Speakr, WhisperX and Caddy in the background
 	@grep -qE '^SITE_ADDRESS=[A-Za-z0-9][A-Za-z0-9.-]*$$' .env || { echo "SITE_ADDRESS in .env must be a host name such as localhost (old values like :80 are rejected by Caddy)."; echo "Set SITE_ADDRESS=localhost, PUBLIC_URL=https://localhost:8446 and SESSION_COOKIE_SECURE=true in .env, then run make start."; exit 1; }
 	@test -f caddy/auth.caddy || { echo "No login set yet: run 'make password' first"; exit 1; }
 	@test -f caddy/certs/server.crt || $(MAKE) --no-print-directory certs
@@ -90,7 +94,7 @@ DOCKER_BIN   := $(shell command -v docker)
 
 .PHONY: service-install service-uninstall service-status service-logs
 
-service-install: init ## Install and start the boot service (sudo)
+service-install: setup ## Install and start the boot service (sudo)
 	@test -f caddy/auth.caddy || { echo "No password set yet: run 'make password' first"; exit 1; }
 	@test -n "$(DOCKER_BIN)" || { echo "docker not found in PATH"; exit 1; }
 	@test ! -f /etc/init.d/$(SERVICE) || { echo "The init.d script is installed; run 'make initd-uninstall' first"; exit 1; }
@@ -130,7 +134,7 @@ INITD_FILE := /etc/init.d/$(SERVICE)
 
 .PHONY: initd-install initd-uninstall
 
-initd-install: init ## Install the init.d script and start it (sudo)
+initd-install: setup ## Install the init.d script and start it (sudo)
 	@test -f caddy/auth.caddy || { echo "No password set yet: run 'make password' first"; exit 1; }
 	@test ! -f $(SERVICE_FILE) || { echo "The systemd unit is installed; run 'make service-uninstall' first"; exit 1; }
 	sed -e "s#@NAME@#$(SERVICE)#g" -e "s#@WORKDIR@#$(CURDIR)#g" -e "s#@DOCKER@#$(DOCKER_BIN)#g" init.d/$(SERVICE).in | sudo tee $(INITD_FILE) > /dev/null
