@@ -1,0 +1,27 @@
+# systemd unit that starts the speakr stack (Speakr, WhisperX, Caddy) at boot.
+# Installed by `make service-install`, which replaces @WORKDIR@ and @DOCKER@.
+# Do not edit the copy in /etc/systemd/system; edit this file and reinstall.
+
+[Unit]
+Description=speakr transcription server (Docker Compose stack behind Caddy)
+# Docker must be running before the stack can start, and the network must be up
+# so Caddy can bind its ports and fetch certificates.
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+# `docker compose up -d` starts the containers and exits; RemainAfterExit keeps the
+# service "active" afterwards so `systemctl stop` knows there is something to stop.
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=@WORKDIR@
+ExecStart=@DOCKER@ compose up -d --remove-orphans
+ExecStop=@DOCKER@ compose down
+ExecReload=@DOCKER@ compose up -d --remove-orphans
+# The first start pulls images and may take a while.
+TimeoutStartSec=600
+
+[Install]
+# Start when the machine reaches normal multi-user mode (every normal boot).
+WantedBy=multi-user.target

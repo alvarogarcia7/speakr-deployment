@@ -1,0 +1,8 @@
+# Secrets and per-machine state: never commit
+.env
+.caddy-credentials
+caddy/auth.caddy
+caddy/data/
+caddy/config/
+data/
+models/

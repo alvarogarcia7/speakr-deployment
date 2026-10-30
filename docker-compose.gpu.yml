@@ -1,0 +1,13 @@
+# NVIDIA GPU for WhisperX. Enable with COMPOSE_FILE=docker-compose.yml:docker-compose.gpu.yml in .env
+# and set WHISPERX_DEVICE=cuda, WHISPERX_COMPUTE_TYPE=float16, WHISPERX_BATCH_SIZE=16.
+# Needs the NVIDIA Container Toolkit. RTX 50xx: WHISPERX_VERSION=blackwell
+services:
+  whisperx-asr:
+    shm_size: "8g"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

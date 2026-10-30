@@ -1,0 +1,51 @@
+#!/bin/sh
+### BEGIN INIT INFO
+# Provides:          @NAME@
+# Required-Start:    $remote_fs $network docker
+# Required-Stop:     $remote_fs $network docker
+# Default-Start:     2 3 4 5
+# Default-Stop:      0 1 6
+# Short-Description: @NAME@ transcription stack (Docker Compose behind Caddy)
+### END INIT INFO
+#
+# SysV init script, installed by `make initd-install` as /etc/init.d/@NAME@.
+# @WORKDIR@ and @DOCKER@ are filled in at install time.
+# On Ubuntu, systemd runs this script for you through systemd-sysv-generator,
+# so `service @NAME@ start` and `systemctl start @NAME@` both work.
+# Use either this script or the systemd unit (make service-install), not both.
+
+WORKDIR="@WORKDIR@"
+DOCKER="@DOCKER@"
+
+compose() {
+	cd "$WORKDIR" || { echo "Missing $WORKDIR"; exit 1; }
+	"$DOCKER" compose "$@"
+}
+
+case "$1" in
+	start)
+		echo "Starting @NAME@"
+		compose up -d --remove-orphans
+		;;
+	stop)
+		echo "Stopping @NAME@"
+		compose down
+		;;
+	restart|force-reload)
+		compose down
+		compose up -d --remove-orphans
+		;;
+	reload)
+		compose up -d --remove-orphans
+		;;
+	status)
+		compose ps
+		# exit 0 if at least one container of the stack is running, 3 otherwise (LSB)
+		[ -n "$(compose ps -q --status running)" ] && exit 0 || exit 3
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|reload|status}"
+		exit 2
+		;;
+esac
+exit 0

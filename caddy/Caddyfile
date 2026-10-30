@@ -1,0 +1,13 @@
+# SITE_ADDRESS from .env:
+#   :80                    plain HTTP (use over Tailscale or a LAN only)
+#   scribe.example.com     automatic HTTPS from Let's Encrypt (needs ports 80 and 443)
+{$SITE_ADDRESS} {
+	# Written by `make password`: basic_auth { <user> <bcrypt hash> }
+	import /etc/caddy/auth.caddy
+
+	encode zstd gzip
+	request_body {
+		max_size 2GB
+	}
+	reverse_proxy {$UPSTREAM}
+}

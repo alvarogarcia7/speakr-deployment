@@ -1,0 +1,69 @@
+# Speakr behind Caddy with a username and password, transcribing locally with WhisperX.
+# Everything is stored next to this file:
+#   ./data/uploads   -> uploaded audio
+#   ./data/instance  -> database, settings, generated secret key
+#   ./models         -> Whisper, alignment and speaker models (Hugging Face cache)
+#   ./caddy          -> Caddyfile, password file, certificates
+name: speakr
+
+services:
+  app:
+    image: learnedmachine/speakr:${SPEAKR_VERSION:-lite}
+    container_name: speakr
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=ERROR
+      - ASR_BASE_URL=http://whisperx-asr:9000
+    expose:
+      - "8899"
+    volumes:
+      - ./data/uploads:/data/uploads
+      - ./data/instance:/data/instance
+    depends_on:
+      - whisperx-asr
+
+  # Local transcription. CPU by default; see docker-compose.gpu.yml for NVIDIA GPUs.
+  whisperx-asr:
+    image: learnedmachine/whisperx-asr-service:${WHISPERX_VERSION:-latest}
+    container_name: speakr-whisperx
+    restart: unless-stopped
+    shm_size: "2g"
+    expose:
+      - "9000"
+    environment:
+      - PYTHONWARNINGS=ignore::UserWarning
+      - DEVICE=${WHISPERX_DEVICE:-cpu}
+      - COMPUTE_TYPE=${WHISPERX_COMPUTE_TYPE:-int8}
+      - BATCH_SIZE=${WHISPERX_BATCH_SIZE:-2}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - CACHE_DIR=/.cache
+      - HF_HOME=/.cache
+      - NLTK_DATA=/.cache/nltk_data
+      - PRELOAD_MODEL=${WHISPER_MODEL:-small}
+      - ALLOWED_MODELS=${WHISPER_ALLOWED_MODELS:-}
+      - MAX_FILE_SIZE_MB=1000
+    volumes:
+      - ./models:/.cache
+
+  caddy:
+    image: caddy:${CADDY_VERSION:-2.10}
+    container_name: speakr-caddy
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-8086}:80"
+      - "${HTTPS_PORT:-8446}:443"
+    environment:
+      - SITE_ADDRESS=${SITE_ADDRESS:-:80}
+      - UPSTREAM=app:8899
+    volumes:
+      # Named volume: the daemon here cannot read bind-mounted files, so make start copies them in
+      - caddy-etc:/etc/caddy:ro
+      - ./caddy/data:/data
+      - ./caddy/config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy-etc:
