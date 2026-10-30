@@ -1,0 +1,6 @@
+.env
+.caddy-credentials
+caddy/
+data/
+models/
+.git/

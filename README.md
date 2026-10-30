@@ -63,7 +63,9 @@ Set `SITE_ADDRESS` to your domain, `HTTP_PORT=80`, `HTTPS_PORT=443`, `PUBLIC_URL
 
 ## Spoken punctuation
 
-WhisperX writes "period", "comma" and "new line" as words when the speaker says them. To turn them into symbols, pipe a transcript through `scripts/spoken_punctuation.py`:
+WhisperX writes "period", "comma" and "new line" as words when the speaker says them. The `asr-punctuate` service sits between Speakr and WhisperX and turns them into `. , ? !` and line breaks in every transcript, before Speakr stores it. The conversion lives in `scripts/spoken_punctuation.py`. Rebuild after changing it with `docker compose build asr-punctuate` and `make restart`.
+
+To convert a text file by hand:
 
 ```bash
 python3 scripts/spoken_punctuation.py < transcript.txt > punctuated.txt

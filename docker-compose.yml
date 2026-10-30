@@ -15,12 +15,28 @@ services:
       - .env
     environment:
       - LOG_LEVEL=ERROR
-      - ASR_BASE_URL=http://whisperx-asr:9000
+      - ASR_BASE_URL=http://asr-punctuate:9000
     expose:
       - "8899"
     volumes:
       - ./data/uploads:/data/uploads
       - ./data/instance:/data/instance
+    depends_on:
+      - asr-punctuate
+
+  # Turns spoken "period", "comma", "new line" in the transcript into . , and line breaks
+  # (scripts/spoken_punctuation.py). Speakr talks to this instead of WhisperX directly.
+  asr-punctuate:
+    build:
+      context: .
+      dockerfile: asr-punctuate/Dockerfile
+    image: speakr-asr-punctuate:local
+    container_name: speakr-asr-punctuate
+    restart: unless-stopped
+    environment:
+      - UPSTREAM=http://whisperx-asr:9000
+    expose:
+      - "9000"
     depends_on:
       - whisperx-asr
 
