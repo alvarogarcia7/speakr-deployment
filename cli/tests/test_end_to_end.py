@@ -152,3 +152,22 @@ def test_deletion_on_server_is_recorded_and_file_not_resent(tmp_path, fake_serve
     assert rec["status"] == "removed"
     assert (folder / "meeting one.mp3").is_file()  # the local file is kept
     assert len(FakeServer.uploads) == 1           # and not sent again
+
+
+def test_apple_transcript_goes_into_the_transcript_file(tmp_path, fake_server, monkeypatch):
+    import json as _json
+
+    monkeypatch.setenv("SPEAKR_PASSWORD", PASSWORD)
+    monkeypatch.setenv("SPEAKR_API_TOKEN", TOKEN)
+    folder, config = make_setup(tmp_path, fake_server)
+    (folder / ".speakr-sync.yaml").write_text("apple_transcript: true\n", encoding="utf-8")
+    apple = {"attributedString": {"runs": [" Apple", 0, " words.", 1],
+                                  "attributeTable": [{"timeRange": [0, 0.5]}, {"timeRange": [0.5, 1.0]}]}}
+    (folder / "meeting one.mp3").write_bytes(b"\x00" * 50 + b"tsrp" + _json.dumps(apple).encode())
+    assert main(["--config", str(config), "run"]) == 0
+    out = folder / "transcripts"
+    transcript = (out / "meeting one.transcript.md").read_text(encoding="utf-8")
+    assert transcript.index("## Speakr transcript") < transcript.index("## Apple Voice Memos transcript")
+    assert "Hello team" in transcript and "Apple words." in transcript
+    job = (out / "meeting one.job.md").read_text(encoding="utf-8")
+    assert "Apple Voice Memos" not in job

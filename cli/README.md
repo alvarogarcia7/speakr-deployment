@@ -79,7 +79,7 @@ attributes:               # Speakr upload fields: title, participants, notes, fo
 extensions: [.mp3, .m4a, .wav]
 output_dir: transcripts   # relative to the folder
 show_timestamps: true
-apple_transcript: false   # true: add the Apple Voice Memos transcript to .job.md
+apple_transcript: false   # true: add the Apple Voice Memos transcript to .transcript.md
 transforms:
   - drop_speakers_if_single
 ```
@@ -116,8 +116,8 @@ For every file, in `output_dir` next to the audio:
 
 ## Apple Voice Memos transcript
 
-When `apple_transcript: true`, the `.job.md` also gets a section with the transcript that Voice Memos
-generated, read from the `.m4a` file itself (a `tsrp` atom with JSON, reverse engineered from sample
+When `apple_transcript: true`, `.transcript.md` gets a second section, "Apple Voice Memos transcript", after the
+Speakr one. It holds the transcript that Voice Memos generated, read from the `.m4a` file itself (a `tsrp` atom with JSON, reverse engineered from sample
 files; Apple does not document it). Use it to compare with the Speakr transcript. A file without one
 shows a note instead.
 

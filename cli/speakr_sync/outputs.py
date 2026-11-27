@@ -53,9 +53,12 @@ def write_outputs(
     original = from_speakr_json(raw)
     edited = transforms.apply(original, folder.transforms)
     title = info.get("title") or Path(rec["local_path"]).stem
-    paths["transcript_md"].write_text(
-        render_markdown(edited, title, folder.show_timestamps), encoding="utf-8"
-    )
+    transcript_text = render_markdown(edited, title, folder.show_timestamps)
+    if folder.apple_transcript:
+        # both transcripts in the transcript file, one under each heading, for comparison
+        transcript_text = transcript_text.replace(f"# {title}\n", f"# {title}\n\n## Speakr transcript\n", 1)
+        transcript_text += voice_memos.render_section(voice_memos.read_transcript(Path(rec["local_path"])))
+    paths["transcript_md"].write_text(transcript_text, encoding="utf-8")
 
     job_text = render_job(
         title=title,
@@ -67,8 +70,6 @@ def write_outputs(
         speakers=len(original.speakers()),
         folder=folder,
     )
-    if folder.apple_transcript:
-        job_text += voice_memos.render_section(voice_memos.read_transcript(Path(rec["local_path"])))
     paths["job_md"].write_text(job_text, encoding="utf-8")
     return {k: str(v) for k, v in paths.items()}
 
