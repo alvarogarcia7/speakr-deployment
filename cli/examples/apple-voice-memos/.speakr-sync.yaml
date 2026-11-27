@@ -29,6 +29,7 @@ extensions:
 # library and iCloud sync never see them.
 output_dir: ~/Documents/speakr-transcripts/voice-memos
 show_timestamps: true
+apple_transcript: true    # add the transcript Voice Memos made to the .job.md, for comparison
 
 transforms:
   - drop_speakers_if_single   # a voice memo is usually one speaker

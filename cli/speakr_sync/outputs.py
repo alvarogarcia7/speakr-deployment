@@ -9,6 +9,7 @@ from urllib.parse import quote
 
 from . import transforms
 from .config import FolderConfig
+from . import voice_memos
 from .transcript import fmt_time, from_speakr_json, render_markdown
 
 
@@ -66,6 +67,8 @@ def write_outputs(
         speakers=len(original.speakers()),
         folder=folder,
     )
+    if folder.apple_transcript:
+        job_text += voice_memos.render_section(voice_memos.read_transcript(Path(rec["local_path"])))
     paths["job_md"].write_text(job_text, encoding="utf-8")
     return {k: str(v) for k, v in paths.items()}
 

@@ -29,6 +29,7 @@ extensions:
 # --- Output ---------------------------------------------------------------
 output_dir: transcripts   # relative to this folder: .job.md, .transcript.md and raw/ go here
 show_timestamps: true     # [00:01:23] prefix on every transcript line
+apple_transcript: false   # true: also add the transcript Apple Voice Memos made (inside the .m4a) to .job.md
 
 # --- Edits applied to the transcript, in order ----------------------------
 # The raw JSON is kept, so `speakr-sync rerender` applies new rules later.

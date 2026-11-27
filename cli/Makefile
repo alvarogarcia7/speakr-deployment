@@ -1,5 +1,5 @@
 # Tasks for speakr-sync. Run from this folder.
-#   make install                 create .venv and install speakr-sync with the test tools
+#   make install                 create .venv with uv and install speakr-sync with the test tools
 #   make test                    run the test suite
 #   make check                   log in to the server and check the folder configs
 #   make run                     send new files, wait for their transcripts, pick up edits
@@ -9,7 +9,8 @@
 #   make init-config             write an example global config (~/.config/speakr-sync/config.yaml)
 #   make init-folder FOLDER=dir  write an example .speakr-sync.yaml into a folder
 #
-# Variables: CONFIG (global config file), FOLDER (for init-folder), PYTHON (interpreter for install).
+# Requires uv (https://docs.astral.sh/uv/). Variables: CONFIG (global config file),
+# FOLDER (for init-folder), PYTHON (interpreter for the venv, default python3).
 
 PYTHON ?= python3
 VENV   ?= .venv
@@ -26,10 +27,10 @@ CONFIG_ARG := $(if $(CONFIG),--config $(CONFIG),)
 help: ## List the tasks
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
 
+# uv creates the venv and installs the package (no pip needed)
 $(BIN)/speakr-sync: pyproject.toml $(wildcard speakr_sync/*.py)
-	$(PYTHON) -m venv $(VENV)
-	$(BIN)/pip install --quiet --upgrade pip
-	$(BIN)/pip install --quiet -e ".[test]"
+	uv venv --quiet --python $(PYTHON) $(VENV)
+	uv pip install --quiet --python $(BIN)/python -e ".[test]"
 	@touch $@
 
 install: $(BIN)/speakr-sync ## Create .venv and install speakr-sync with the test tools

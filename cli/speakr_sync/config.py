@@ -26,6 +26,7 @@ SERVER_KEYS = {"url", "username", "ca_bundle", "verify_tls", "api_token_env"}
 FOLDER_KEYS = {
     "language", "transcription_model", "hotwords", "initial_prompt", "min_speakers",
     "max_speakers", "attributes", "extensions", "output_dir", "transforms", "show_timestamps",
+    "apple_transcript",
 }
 # Fields of the Speakr upload form that the folder config may set (see POST /api/v1/recordings/upload)
 ATTRIBUTE_KEYS = {"title", "participants", "notes", "folder_id", "tag_ids", "meeting_date"}
@@ -58,6 +59,7 @@ class FolderConfig:
     output_dir: Path = Path("transcripts")
     transforms: list[TransformSpec] = field(default_factory=list)
     show_timestamps: bool = True
+    apple_transcript: bool = False  # add the Apple Voice Memos transcript to the job report
     config_file: Path | None = None
 
     @property
@@ -200,6 +202,7 @@ def load_folder_config(folder: Path) -> FolderConfig:
         output_dir=Path(os.path.expanduser(str(raw.get("output_dir") or "transcripts"))),  # ~ and absolute paths allowed
         transforms=transforms,
         show_timestamps=bool(raw.get("show_timestamps", True)),
+        apple_transcript=bool(raw.get("apple_transcript", False)),
         config_file=cfg_path,
     )
 

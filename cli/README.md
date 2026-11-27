@@ -5,13 +5,18 @@ local folders to Speakr, waits for the transcription, and writes Markdown next t
 
 ## Install
 
-Needs Python 3.10 or newer.
+Needs [uv](https://docs.astral.sh/uv/) and Python 3.10 or newer. uv creates the virtual environment.
 
 ```bash
 cd cli
-python3 -m venv .venv && . .venv/bin/activate
-pip install -e ".[test]"        # or: pip install .
+make install        # creates .venv with uv and installs speakr-sync with the test tools
+. .venv/bin/activate  # optional: makes `speakr-sync` available directly
 ```
+
+Without make: `uv venv .venv && uv pip install --python .venv/bin/python -e ".[test]"`.
+
+Every task in the Makefile runs from `.venv` (`make help` lists them): `make check`, `make run`,
+`make watch`, `make status`, `make rerender`, `make test`, `make clean`.
 
 ## Set up
 
@@ -74,6 +79,7 @@ attributes:               # Speakr upload fields: title, participants, notes, fo
 extensions: [.mp3, .m4a, .wav]
 output_dir: transcripts   # relative to the folder
 show_timestamps: true
+apple_transcript: false   # true: add the Apple Voice Memos transcript to .job.md
 transforms:
   - drop_speakers_if_single
 ```
@@ -108,6 +114,13 @@ For every file, in `output_dir` next to the audio:
   `[00:01:23] **Alice:** text`.
 - `raw/<name>.json`: the transcript as Speakr returned it. `rerender` uses this file.
 
+## Apple Voice Memos transcript
+
+When `apple_transcript: true`, the `.job.md` also gets a section with the transcript that Voice Memos
+generated, read from the `.m4a` file itself (a `tsrp` atom with JSON, reverse engineered from sample
+files; Apple does not document it). Use it to compare with the Speakr transcript. A file without one
+shows a note instead.
+
 ## Transforms
 
 Transforms edit the transcript before it is written. They run in the order listed in the folder
@@ -127,8 +140,7 @@ decorator. It takes a `Transcript` and returns a new one.
 ## Tests
 
 ```bash
-pip install -e ".[test]"
-pytest
+make test
 ```
 
 The end-to-end tests run against a fake Authelia and Speakr server, not a real deployment.
