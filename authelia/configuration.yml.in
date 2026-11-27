@@ -1,0 +1,42 @@
+# Authelia: the login in front of Speakr. Caddy asks it (forward auth) before every request.
+# Rendered by `make authelia-sync` into the speakr-authelia volume at /config, with
+# SITE_ADDRESS from .env as the cookie domain. Users are in users_database.yml. The three
+# secrets (session, storage key, reset JWT) are read from /config/secrets via the *_FILE
+# environment variables in docker-compose.yml, not from this file. Nothing here is a password.
+
+theme: auto
+
+server:
+  # Only reachable inside the Docker network. Caddy serves it under /authelia on the Speakr site.
+  address: 'tcp://:9091/authelia'
+
+log:
+  level: info
+
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+    password:
+      algorithm: argon2id
+
+# One factor (username and password) for everything behind Caddy
+access_control:
+  default_policy: one_factor
+
+session:
+  cookies:
+    # Cookie domain must contain a dot or be an IP address (SITE_ADDRESS). Login page: PUBLIC_URL + /authelia/
+    - domain: '@SITE_ADDRESS@'
+      name: speakr_authelia_session
+      authelia_url: '@PUBLIC_URL@/authelia/'
+  expiration: 12h
+  inactivity: 1h
+
+storage:
+  local:
+    path: /config/db.sqlite3
+
+notifier:
+  # No mail server: nothing is sent, Authelia only writes into this file
+  filesystem:
+    filename: /config/notification.txt

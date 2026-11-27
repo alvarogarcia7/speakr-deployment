@@ -1,14 +1,12 @@
-# Speakr behind Caddy: basic auth (caddy/auth.caddy), status page while the app starts.
-# HTTP (HTTP_PORT) and HTTPS (HTTPS_PORT) serve the same site; neither redirects to the other.
+# Speakr behind Caddy: Authelia login (forward auth), status page while the app starts.
+# HTTPS (HTTPS_PORT) serves Speakr behind the login. HTTP (HTTP_PORT) only redirects to HTTPS:
+# Authelia issues its session cookie over HTTPS only, so Speakr cannot be behind the login on plain HTTP.
 # The certificate for HTTPS comes from `make certs` (caddy/certs), copied by `make caddy-sync`.
 {
 	auto_https off
 }
 
 (speakr) {
-	# Written by `make password`: basic_auth { <user> <bcrypt hash> }
-	import /etc/caddy/auth.caddy
-
 	# While Speakr is not answering yet (502/503/504), show the status page from caddy/www
 	handle_errors {
 		@starting expression {http.error.status_code} in [502, 503, 504]
@@ -23,11 +21,24 @@
 	request_body {
 		max_size 2GB
 	}
-	reverse_proxy {$UPSTREAM}
+
+	# Authelia's own login page and API: no login needed to reach them
+	handle /authelia* {
+		reverse_proxy authelia:9091
+	}
+
+	# Everything else: Authelia must confirm the session first, otherwise the browser is sent to its login page
+	handle {
+		forward_auth authelia:9091 {
+			uri /authelia/api/authz/forward-auth
+			copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+		}
+		reverse_proxy {$UPSTREAM}
+	}
 }
 
 http://{$SITE_ADDRESS} {
-	import speakr
+	redir https://{$SITE_ADDRESS}:{$PUBLIC_HTTPS_PORT}{uri} 302
 }
 
 https://{$SITE_ADDRESS} {

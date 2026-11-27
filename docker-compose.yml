@@ -1,9 +1,10 @@
-# Speakr behind Caddy with a username and password, transcribing locally with WhisperX.
+# Speakr behind Caddy, with an Authelia login, transcribing locally with WhisperX.
 # Everything is stored next to this file:
 #   ./data/uploads   -> uploaded audio
 #   ./data/instance  -> database, settings, generated secret key
 #   volume speakr-models -> Whisper, alignment and speaker models (Hugging Face cache)
-#   ./caddy          -> Caddyfile, password file, certificates
+#   volume speakr-authelia -> Authelia config, users (password hashes), secrets (filled by make authelia-sync)
+#   ./caddy          -> Caddyfile, certificates
 name: speakr
 
 services:
@@ -69,6 +70,24 @@ services:
       # Named volume: Whisper, alignment and speaker models; survives container recreation
       - speakr-models:/.cache
 
+  # Login in front of Speakr: Caddy asks Authelia before every request. Users: make password.
+  authelia:
+    image: authelia/authelia:4.38
+    container_name: speakr-authelia
+    restart: unless-stopped
+    command: ["authelia", "--config", "/config/configuration.yml"]
+    environment:
+      # Secrets are read from files (not from configuration.yml), written by make setup and make authelia-sync
+      - AUTHELIA_SESSION_SECRET_FILE=/config/secrets/session
+      - AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE=/config/secrets/storage
+      - AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE=/config/secrets/jwt
+    expose:
+      - "9091"
+    volumes:
+      # Filled by `make authelia-sync` (run by make start and make password), because the daemon
+      # cannot be relied on to read bind-mounted files; users are stored as argon2id hashes only
+      - speakr-authelia:/config
+
   caddy:
     image: caddy:${CADDY_VERSION:-2.10}
     container_name: speakr-caddy
@@ -81,13 +100,14 @@ services:
       - PUBLIC_HTTPS_PORT=${HTTPS_PORT:-8446}
       - UPSTREAM=app:8899
     volumes:
-      # Named volume filled by `make caddy-sync` (run by make start and make password),
+      # Named volume filled by `make caddy-sync` (run by make start),
       # because some Docker daemons cannot read single bind-mounted files
       - caddy-etc:/etc/caddy:ro
       - ./caddy/data:/data
       - ./caddy/config:/config
     depends_on:
       - app
+      - authelia
 
 volumes:
   caddy-etc:
@@ -95,3 +115,5 @@ volumes:
   speakr-models:
     name: speakr-models
     external: true   # created by make setup
+  speakr-authelia:
+    name: speakr-authelia

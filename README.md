@@ -1,14 +1,14 @@
 # Speakr on your server, behind Caddy
 
-Library of recordings with a transcript editor (find and replace, speaker per segment), click a line to jump there, highlight following playback. Transcription runs locally with WhisperX; models are stored in `./models`. Only Caddy is reachable from outside, behind a username and password.
+Library of recordings with a transcript editor (find and replace, speaker per segment), click a line to jump there, highlight following playback. Transcription runs locally with WhisperX; models are stored in `./models`. Only Caddy is reachable from outside, behind an Authelia login (username and password).
 
 ```bash
-make init             # creates .env with random Speakr admin password and secret key
+make init             # creates .env with random Speakr admin password and secret key; SITE_ADDRESS must contain a dot
 make certs            # local CA and HTTPS certificate in caddy/certs (install ca.crt on your machines)
-make pass             # Caddy login: username (default admin) and a generated 24-character password, saved in .env
+make password         # login in front of Speakr (Authelia): username (default admin) and a generated 24-character password, shown once
 make build            # pulls the images (WhisperX is several GB)
-make start            # open PUBLIC_URL from .env, default https://localhost:8446
-make admin-password   # the Speakr and Caddy logins from .env
+make start            # open PUBLIC_URL from .env, default https://speakr.localhost:8446
+make admin-password   # the Speakr login from .env and the Authelia username (the password is not stored)
 make logs             # the first start downloads the Whisper model
 make stop
 ```
@@ -27,31 +27,19 @@ Needs Docker with the Compose v2 plugin (`docker compose version`). Without it, 
 
 - `./models`: Whisper, alignment and speaker models (Hugging Face cache). Survives restarts and upgrades.
 - `./data`: Speakr database, settings and uploaded audio. Back this up.
-- `./caddy/auth.caddy`: the Caddy username and bcrypt hash. Run `make password` again to change it.
-- `caddy/Caddyfile` and `caddy/auth.caddy` are copied into the `speakr-caddy-etc` volume by `make caddy-sync`, which `make start` and `make password` run. After editing either file, run `make restart`.
+- `./authelia/users_database.yml`: the login's username and argon2id password hash. The password itself is never written to disk: `make password` shows it once. Run `make password` again to set a new one (it replaces the old login).
+- `./authelia/secrets/`: random keys for Authelia's sessions and storage. Keep it with the users file in your backups.
+- `caddy/Caddyfile` is copied into the `speakr-caddy-etc` volume by `make caddy-sync`; the Authelia config, users and secrets are copied into the `speakr-authelia` volume by `make authelia-sync`. Both run from `make start`. After editing the Caddyfile or `authelia/configuration.yml.in`, run `make restart`.
 
 ## Start automatically at boot
 
-Pick one of the two:
-
-**systemd unit (recommended on Ubuntu)**
+Installs a systemd unit (`systemd/speakr.service.in` becomes `/etc/systemd/system/speakr.service`). At boot, after Docker and the network are up, it runs `docker compose up -d` here; on stop or shutdown, `docker compose down`.
 
 ```bash
-make service-install      # sudo systemctl start|stop|restart speakr
+make service-install      # sudo; then sudo systemctl start|stop|restart speakr
 make service-status
 make service-uninstall
 ```
-
-`systemd/speakr.service.in` becomes `/etc/systemd/system/speakr.service`. At boot, after Docker and the network are up, it runs `docker compose up -d` here; on stop or shutdown, `docker compose down`.
-
-**init.d script**
-
-```bash
-make initd-install        # sudo service speakr start|stop|restart|status
-make initd-uninstall
-```
-
-`init.d/speakr.in` becomes `/etc/init.d/speakr`, and `update-rc.d` links it into the start runlevels (2 to 5) and the stop runlevels (0, 1, 6). It runs the same `docker compose up -d` and `down`. On Ubuntu, systemd runs init.d scripts through its compatibility layer, so `systemctl status speakr` also works. The Makefile refuses to install both, since that would start the stack twice.
 
 ## HTTPS
 
@@ -60,9 +48,14 @@ Caddy serves HTTPS on `HTTPS_PORT` (default 8446) with a certificate from a loca
 - `ca.crt` is the public part of the CA. Install it on each machine that opens Speakr (macOS Keychain, Windows "Trusted Root Certification Authorities", or the browser's certificate store). Without it the browser warns about the certificate.
 - `ca.key` and `server.key` stay private and are git-ignored.
 - The certificate names are `localhost`, `127.0.0.1`, `::1`, the machine's hostname and `SITE_ADDRESS` from `.env`. To add a name, set `SITE_ADDRESS` in `.env`, then run `FORCE=1 make certs` and `make restart`. `make certs` prints the `SITE_ADDRESS` it uses.
-- Plain HTTP on `HTTP_PORT` serves the same Speakr site without TLS. It does not redirect. Logins over plain HTTP send the Caddy and Speakr passwords in clear text, and with `SESSION_COOKIE_SECURE=true` Speakr's session cookie is not stored over HTTP, so logging in over HTTP needs `SESSION_COOKIE_SECURE=false`.
+- Plain HTTP on `HTTP_PORT` only redirects to the HTTPS address. Authelia sets its session cookie only over HTTPS, so Speakr cannot sit behind the login on plain HTTP.
+- The Authelia login needs `SITE_ADDRESS` to contain a dot, such as `speakr.localhost` or a real name on your network (Authelia does not accept `localhost` or a bare name as a cookie domain). It is also the name the certificate is made for, so change it with `FORCE=1 make certs`.
 
 For a public domain with a trusted certificate (Let's Encrypt), this setup is not enough: remove `auto_https off` and the `tls` line from `caddy/Caddyfile`, use the domain as `SITE_ADDRESS`, and point its DNS at the server with ports 80 and 443 open.
+
+## Login (Authelia)
+
+Authelia asks for the username and password before Speakr. The login page is `PUBLIC_URL/authelia/`. After logging in, the session lasts until it expires (12 hours, or 1 hour without activity). To change the login, run `make password`.
 
 ## Notes
 
