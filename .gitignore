@@ -2,6 +2,9 @@
 .env
 .caddy-credentials
 caddy/auth.caddy
+# Authelia: password hashes and secrets (the password itself is never stored)
+authelia/users_database.yml
+authelia/secrets/
 caddy/data/
 caddy/config/
 data/

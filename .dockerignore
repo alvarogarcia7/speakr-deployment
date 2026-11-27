@@ -4,3 +4,5 @@ caddy/
 data/
 models/
 .git/
+authelia/secrets/
+authelia/users_database.yml
