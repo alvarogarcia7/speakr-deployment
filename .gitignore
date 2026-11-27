@@ -7,3 +7,10 @@ caddy/config/
 data/
 models/
 caddy/certs/
+
+# speakr-sync client
+cli/.venv/
+cli/*.egg-info/
+cli/build/
+__pycache__/
+.pytest_cache/

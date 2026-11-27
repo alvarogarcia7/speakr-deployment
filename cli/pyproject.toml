@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "speakr-sync"
+version = "0.1.0"
+description = "Upload recordings to a Speakr server (behind Authelia) and save transcripts as Markdown"
+requires-python = ">=3.10"
+dependencies = ["requests>=2.31", "PyYAML>=6.0"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+speakr-sync = "speakr_sync.cli:main"
+
+[tool.setuptools]
+packages = ["speakr_sync"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

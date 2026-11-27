@@ -1,0 +1,47 @@
+# speakr-sync folder config. Copy it into each watched folder as .speakr-sync.yaml
+# (or run: speakr-sync init-folder <folder>). Every audio/video file directly in the
+# folder is uploaded once; subfolders are not scanned.
+
+# --- Transcription --------------------------------------------------------
+language: en              # ISO 639-1 code (en, fr, de, ar...); empty = auto-detect
+transcription_model:      # empty = server default; must be one the server allows
+hotwords: ""              # names and terms the transcriber should expect, e.g. "Speakr, Authelia"
+initial_prompt: ""        # short free-text hint about the content
+min_speakers:             # diarization limits, whole numbers >= 1 (needs speaker detection on the server)
+max_speakers:
+
+# --- Upload attributes (Speakr upload form fields) ------------------------
+attributes:
+  participants: ""        # "Alice, Bob" or a list: [Alice, Bob]
+  notes: ""
+  # title: "Weekly sync"  # if unset, Speakr titles the recording itself
+  # folder_id: 3          # id of a Speakr folder
+  # tag_ids: [1, 2]       # ids of Speakr tags
+  # meeting_date: "2026-11-27T10:00:00"
+
+# --- Which files to pick up -----------------------------------------------
+extensions:
+  - .mp3
+  - .m4a
+  - .wav
+  - .mp4
+
+# --- Output ---------------------------------------------------------------
+output_dir: transcripts   # relative to this folder: .job.md, .transcript.md and raw/ go here
+show_timestamps: true     # [00:01:23] prefix on every transcript line
+
+# --- Edits applied to the transcript, in order ----------------------------
+# The raw JSON is kept, so `speakr-sync rerender` applies new rules later.
+transforms:
+  - drop_speakers_if_single   # one speaker in the recording: no speaker names
+  # - merge_consecutive       # join neighbouring lines of the same speaker
+  # - drop_empty              # remove lines with no text
+  # - rename_speakers:
+  #     map:
+  #       SPEAKER_00: Alice
+  #       SPEAKER_01: Bob
+  # - replace:
+  #     rules:
+  #       - pattern: "colour"
+  #         replacement: "color"
+  #         regex: false

@@ -69,6 +69,10 @@ For a public domain with a trusted certificate (Let's Encrypt), this setup is no
 - WhisperX ASR service is alpha software and its upstream targets NVIDIA GPUs. CPU mode works but long recordings are slow.
 - Speakr is AGPL-3.0 with a paid commercial license; self-hosting for yourself is covered by the AGPL.
 
+## Upload client (speakr-sync)
+
+`cli/` has a command line client that sends recordings from local folders to this server and writes the transcripts as Markdown. See [cli/README.md](cli/README.md).
+
 ## Spoken punctuation
 
 WhisperX writes "period", "comma" and "new line" as words when the speaker says them. The `asr-punctuate` service sits between Speakr and WhisperX and turns them into `. , ? !` and line breaks in every transcript, before Speakr stores it. The conversion lives in `scripts/spoken_punctuation.py`. Rebuild after changing it with `docker compose build asr-punctuate` and `make restart`.
