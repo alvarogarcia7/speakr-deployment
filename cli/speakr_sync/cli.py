@@ -33,14 +33,24 @@ def _login(app: AppConfig) -> SpeakrClient:
     session = requests.Session()
     auth.configure_tls(session, app.server)
     token = auth.api_token(app.server)
-    password = auth.read_password(app.server)
+    password, source = auth.read_password(app.server)
 
     def relogin() -> None:
         log.info("session expired, logging in again")
-        auth.login_authelia(session, app.server, password)
+        auth.login_authelia(session, app.server, password, source)
 
-    auth.login_authelia(session, app.server, password)
-    return SpeakrClient(session, app.server.url, token, relogin=relogin)
+    # Step 1: Authelia login (username and password). Its errors name the account and password source.
+    auth.login_authelia(session, app.server, password, source)
+    client = SpeakrClient(session, app.server.url, token, relogin=relogin)
+    # Step 2: Speakr API token. Checked now, so a bad token is reported as such, not as a login failure.
+    try:
+        client.token_info()
+    except SpeakrError as exc:
+        raise auth.AuthError(
+            f"Authelia login worked, but the Speakr API token from {app.server.api_token_env} was rejected "
+            f"({exc}). Create a token in Speakr (API tokens) and export it as {app.server.api_token_env}."
+        ) from exc
+    return client
 
 
 def _load_folders(app: AppConfig) -> list[FolderConfig]:

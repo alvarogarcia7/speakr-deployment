@@ -61,7 +61,18 @@ def test_wrong_password_fails_cleanly(tmp_path, fake_server, monkeypatch, capsys
     monkeypatch.setenv("SPEAKR_API_TOKEN", TOKEN)
     _, config = make_setup(tmp_path, fake_server)
     assert main(["--config", str(config), "check"]) == 1
-    assert "wrong username or password" in capsys.readouterr().err
+    err = capsys.readouterr().err
+    assert "Authelia login for user 'admin'" in err
+    assert "password from the SPEAKR_PASSWORD environment variable" in err
+
+
+def test_wrong_api_token_is_reported_as_token_problem(tmp_path, fake_server, monkeypatch, capsys):
+    monkeypatch.setenv("SPEAKR_PASSWORD", PASSWORD)
+    monkeypatch.setenv("SPEAKR_API_TOKEN", "not-the-token")
+    _, config = make_setup(tmp_path, fake_server)
+    assert main(["--config", str(config), "check"]) == 1
+    err = capsys.readouterr().err
+    assert "Authelia login worked" in err and "API token from SPEAKR_API_TOKEN was rejected" in err
 
 
 def test_session_expiry_triggers_relogin(tmp_path, fake_server, monkeypatch):

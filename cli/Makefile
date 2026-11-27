@@ -29,7 +29,7 @@ help: ## List the tasks
 
 # uv creates the venv and installs the package (no pip needed)
 $(BIN)/speakr-sync: pyproject.toml $(wildcard speakr_sync/*.py)
-	uv venv --quiet --python $(PYTHON) $(VENV)
+	@test -x $(BIN)/python || uv venv --quiet --python $(PYTHON) $(VENV)
 	uv pip install --quiet --python $(BIN)/python -e ".[test]"
 	@touch $@
 

@@ -40,18 +40,22 @@ def api_token(server: ServerConfig) -> str:
     return token
 
 
-def read_password(server: ServerConfig) -> str:
+def read_password(server: ServerConfig) -> tuple[str, str]:
+    """Returns (password, where it came from), so a failed login can say which source was used."""
     password = os.environ.get("SPEAKR_PASSWORD")
     if password:
-        return password
+        return password, "the SPEAKR_PASSWORD environment variable"
     if not sys.stdin.isatty():
         raise AuthError("no password: set SPEAKR_PASSWORD (nothing to ask on a terminal-less run)")
-    return getpass.getpass(f"Password for {server.username} at {server.url}: ")
+    return getpass.getpass(f"Password for {server.username} at {server.url}: "), "the prompt"
 
 
-def login_authelia(session: requests.Session, server: ServerConfig, password: str) -> None:
-    """POST /authelia/api/firstfactor stores the session cookie in `session`."""
+def login_authelia(session: requests.Session, server: ServerConfig, password: str, source: str = "") -> None:
+    """POST /authelia/api/firstfactor stores the session cookie in `session`.
+    `source` says where the password came from; it is shown in error messages."""
     url = f"{server.url}/authelia/api/firstfactor"
+    who = f"Authelia login for user '{server.username}' at {server.url}"
+    used = f" (password from {source})" if source else ""
     try:
         resp = session.post(
             url,
@@ -62,11 +66,14 @@ def login_authelia(session: requests.Session, server: ServerConfig, password: st
     except requests.RequestException as exc:
         raise AuthError(f"cannot reach {server.url}: {exc}") from exc
     if resp.status_code == 401:
-        raise AuthError("login refused: wrong username or password")
+        raise AuthError(
+            f"{who} refused: wrong username or password{used}. This is the Authelia password "
+            "(make password on the server), not the Speakr admin password."
+        )
     if resp.status_code == 429:
-        raise AuthError("login refused: too many attempts, wait a few minutes")
+        raise AuthError(f"{who} refused: too many attempts, wait a few minutes")
     if resp.status_code != 200:
-        raise AuthError(f"login failed with HTTP {resp.status_code} at {url}")
+        raise AuthError(f"{who} failed with HTTP {resp.status_code} at {url}")
 
     state = session.get(f"{server.url}/authelia/api/state", timeout=30, allow_redirects=False)
     try:
@@ -74,4 +81,5 @@ def login_authelia(session: requests.Session, server: ServerConfig, password: st
     except ValueError:
         ok = False
     if not ok:
-        raise AuthError("login did not produce a session cookie (is the server behind Authelia, and HTTPS?)")
+        raise AuthError(f"{who}: the server accepted the login but no session cookie came back "
+                        "(is the server behind Authelia, and is the URL HTTPS?)")
