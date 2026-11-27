@@ -89,6 +89,12 @@ class SpeakrClient:
             raise SpeakrError(f"upload {path.name}: no recording id in the response: {body}")
         return int(body["id"])
 
+    def transcribe(self, recording_id: int, body: dict[str, Any]) -> None:
+        """POST /api/v1/recordings/{id}/transcribe (scope "process"): transcribe again."""
+        resp = self._request("POST", f"/api/v1/recordings/{recording_id}/transcribe", lambda: {"json": body})
+        if resp.status_code >= 400:
+            raise SpeakrError(f"transcribe: HTTP {resp.status_code} {resp.text[:300]}")
+
     def status(self, recording_id: int) -> dict[str, Any]:
         return self._json(self._request("GET", f"/api/v1/recordings/{recording_id}/status"), "status")
 

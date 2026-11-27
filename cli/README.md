@@ -52,6 +52,7 @@ Every task in the Makefile runs from `.venv` (`make help` lists them): `make che
 | `speakr-sync watch` | Repeats every `refresh_seconds`: sends new files, fetches finished transcripts |
 | `speakr-sync status` | Lists every file the client knows, its status and its report |
 | `speakr-sync rerender` | Rebuilds the transcripts from the stored JSON with the current `transforms` (no server needed) |
+| `speakr-sync retranscribe FILE…` | Asks Speakr to transcribe finished files again with the folder's current settings, waits, rewrites the outputs. `--all` for every finished file |
 
 Add `--config FILE` to use another global config, and `-v` for debug messages.
 

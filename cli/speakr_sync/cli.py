@@ -120,6 +120,31 @@ def cmd_rerender(app: AppConfig, state: State) -> int:
     return 0
 
 
+def cmd_retranscribe(app: AppConfig, client: SpeakrClient, state: State, files: list[str], everything: bool) -> int:
+    rows = state.by_status("done")
+    if everything:
+        targets = rows
+    else:
+        if not files:
+            print("name the files to transcribe again (or use --all)", file=sys.stderr)
+            return 2
+        wanted = set(files)
+        targets = [r for r in rows if Path(r["local_path"]).name in wanted or r["local_path"] in wanted]
+        missing = wanted - {Path(r["local_path"]).name for r in targets} - {r["local_path"] for r in targets}
+        if missing:
+            print(f"not a finished recording in the state file: {', '.join(sorted(missing))}", file=sys.stderr)
+            return 1
+    if not targets:
+        print("nothing to transcribe again")
+        return 0
+    syncer = _syncer(app, client, state)
+    ok = True
+    for rec in targets:
+        print(f"transcribing again: {Path(rec['local_path']).name}")
+        ok &= syncer.retranscribe(rec, timeout_seconds=app.wait_minutes * 60, interval_seconds=app.refresh_seconds)
+    return 0 if ok else 1
+
+
 def cmd_init_config(path: Path) -> int:
     if path.exists():
         print(f"{path} already exists; not changed", file=sys.stderr)
@@ -159,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("watch", help="repeat every refresh_seconds")
     sub.add_parser("status", help="list the files and their state")
     sub.add_parser("rerender", help="rebuild transcripts from the stored JSON with the current transforms")
+    retr = sub.add_parser("retranscribe", help="ask Speakr to transcribe finished files again, then rewrite them")
+    retr.add_argument("files", nargs="*", help="file names (or paths) as they were in the folder")
+    retr.add_argument("--all", dest="everything", action="store_true", help="every finished recording")
     init_cfg = sub.add_parser("init-config", help="write an example global config")
     init_cfg.add_argument("path", type=Path, nargs="?", default=DEFAULT_CONFIG_PATH)
     init_folder = sub.add_parser("init-folder", help="write an example folder config")
@@ -190,6 +218,8 @@ def main(argv: list[str] | None = None) -> int:
             client = _login(app)
             if args.command == "check":
                 return cmd_check(app, client, state)
+            if args.command == "retranscribe":
+                return cmd_retranscribe(app, client, state, args.files, args.everything)
             if args.command == "run":
                 return cmd_run(app, client, state, wait=not args.no_wait)
             if args.command == "watch":

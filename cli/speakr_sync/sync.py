@@ -25,6 +25,19 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def transcription_options(folder: FolderConfig) -> dict:
+    """Transcription settings of the folder config, as sent to POST .../transcribe (empty ones omitted)."""
+    options = {
+        "language": folder.language,
+        "transcription_model": folder.transcription_model,
+        "hotwords": folder.hotwords,
+        "initial_prompt": folder.initial_prompt,
+        "min_speakers": folder.min_speakers,
+        "max_speakers": folder.max_speakers,
+    }
+    return {k: v for k, v in options.items() if v not in (None, "")}
+
+
 def discover(folder: FolderConfig, settle_seconds: int) -> list[Path]:
     """Audio/video files directly in the folder (not recursive, so output folders are never scanned)."""
     found = []
@@ -172,6 +185,36 @@ class Syncer:
         finished = self.poll()
         edited = self.refresh()
         return sent, finished, edited
+
+    def retranscribe(self, rec: dict, timeout_seconds: float, interval_seconds: float) -> bool:
+        """Ask Speakr to transcribe the recording again, wait for the new result, write the outputs.
+        The new result is recognised by a changed completed_at, because the old transcript stays
+        COMPLETED until the new one is ready. Returns False if it did not finish in time."""
+        name = Path(rec["local_path"]).name
+        folder = self._folder_for(rec["folder"])
+        recording_id = rec["recording_id"]
+        before = self.client.recording(recording_id).get("completed_at")
+        self.client.transcribe(recording_id, transcription_options(folder))
+        self.state.save(rec["sha256"], status="pending", error=None)
+        log.info("queued a new transcription of %s (recording %d)", name, recording_id)
+
+        deadline = time.monotonic() + timeout_seconds
+        while time.monotonic() < deadline:
+            time.sleep(interval_seconds)
+            status = self.client.status(recording_id)
+            state = str(status.get("status") or "").upper()
+            if state in FAILED_STATES:
+                message = status.get("error") or status.get("stage_detail") or state
+                self.state.save(rec["sha256"], status="failed", error=str(message))
+                log.error("server failed the new transcription of %s: %s", name, message)
+                return False
+            if state == "COMPLETED":
+                info = self.client.recording(recording_id)
+                if info.get("completed_at") != before:
+                    self._finish(rec, updated_at=info.get("updated_at"))
+                    return True
+        log.warning("%s is still being transcribed; run or watch will pick the result up", name)
+        return False
 
     def rerender(self) -> int:
         """Apply the current folder transforms to the stored raw JSON of finished files (no server needed)."""

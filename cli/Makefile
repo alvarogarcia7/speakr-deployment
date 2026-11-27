@@ -6,6 +6,7 @@
 #   make watch                   same, repeated every refresh_seconds (Ctrl+C to stop)
 #   make status                  list the files and their state
 #   make rerender                rebuild transcripts from the stored JSON
+#   make retranscribe FILE=name  ask Speakr to transcribe a finished file again (ALL=1 for every file)
 #   make init-config             write an example global config (~/.config/speakr-sync/config.yaml)
 #   make init-folder FOLDER=dir  write an example .speakr-sync.yaml into a folder
 #
@@ -17,12 +18,14 @@ VENV   ?= .venv
 BIN    := $(VENV)/bin
 CONFIG ?=
 FOLDER ?=
+FILE   ?=
+ALL    ?=
 
 # Pass --config only when CONFIG is set; otherwise speakr-sync uses its default path
 CONFIG_ARG := $(if $(CONFIG),--config $(CONFIG),)
 
 .DEFAULT_GOAL := help
-.PHONY: help install test check run watch status rerender init-config init-folder clean
+.PHONY: help install test check run watch status rerender retranscribe init-config init-folder clean
 
 help: ## List the tasks
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  %-14s %s\n", $$1, $$2}'
@@ -55,6 +58,10 @@ rerender: install ## Rebuild transcripts from the stored JSON with the current t
 
 init-config: install ## Write an example global config (refuses to overwrite)
 	$(BIN)/speakr-sync $(CONFIG_ARG) init-config $(CONFIG)
+
+retranscribe: install ## Ask Speakr to transcribe FILE=name again (or ALL=1)
+	@test -n "$(FILE)$(ALL)" || { echo "usage: make retranscribe FILE=name.m4a   or   make retranscribe ALL=1"; exit 1; }
+	$(BIN)/speakr-sync $(CONFIG_ARG) retranscribe $(if $(ALL),--all,) $(FILE)
 
 init-folder: install ## Write an example .speakr-sync.yaml into FOLDER=dir
 	@test -n "$(FOLDER)" || { echo "usage: make init-folder FOLDER=path/to/folder"; exit 1; }

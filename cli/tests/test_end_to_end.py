@@ -171,3 +171,27 @@ def test_apple_transcript_goes_into_the_transcript_file(tmp_path, fake_server, m
     assert "Hello team" in transcript and "Apple words." in transcript
     job = (out / "meeting one.job.md").read_text(encoding="utf-8")
     assert "Apple Voice Memos" not in job
+
+
+def test_retranscribe_asks_the_server_and_rewrites_the_transcript(tmp_path, fake_server, monkeypatch):
+    monkeypatch.setenv("SPEAKR_PASSWORD", PASSWORD)
+    monkeypatch.setenv("SPEAKR_API_TOKEN", TOKEN)
+    folder, config = make_setup(tmp_path, fake_server)
+    assert main(["--config", str(config), "run", "--no-wait"]) == 0
+
+    FakeServer.transcript_text = ["Brand new words"]  # what the server produces on the second pass
+    assert main(["--config", str(config), "retranscribe", "meeting one.mp3"]) == 0
+    assert FakeServer.transcribe_bodies == [{"language": "en"}]  # folder settings are sent
+    text = (folder / "transcripts" / "meeting one.transcript.md").read_text(encoding="utf-8")
+    assert "Brand new words" in text and "Hello team" not in text
+    assert len(FakeServer.uploads) == 1  # no new upload
+
+
+def test_retranscribe_unknown_file_is_an_error(tmp_path, fake_server, monkeypatch, capsys):
+    monkeypatch.setenv("SPEAKR_PASSWORD", PASSWORD)
+    monkeypatch.setenv("SPEAKR_API_TOKEN", TOKEN)
+    _, config = make_setup(tmp_path, fake_server)
+    assert main(["--config", str(config), "run", "--no-wait"]) == 0
+    assert main(["--config", str(config), "retranscribe", "nope.mp3"]) == 1
+    assert "not a finished recording" in capsys.readouterr().err
+    assert FakeServer.transcribe_bodies == []

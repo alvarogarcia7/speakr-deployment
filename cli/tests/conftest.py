@@ -19,6 +19,7 @@ class FakeServer(BaseHTTPRequestHandler):
     version = 1                 # bumped on every edit; the change feed reports changes after a cursor
     transcript_text = ["Hello team", "Let us start"]
     removed = False             # when True, recording 7 shows up as deleted in the change feed
+    transcribe_bodies: list = []  # bodies of POST .../transcribe calls
 
     def log_message(self, *args):  # keep test output quiet
         pass
@@ -52,6 +53,12 @@ class FakeServer(BaseHTTPRequestHandler):
             name = body.decode("latin-1").split('filename="')[1].split('"')[0]
             FakeServer.uploads.append((name, key))
             return self._send(200, {"id": 7 + len(FakeServer.uploads) - 1, "status": "PENDING"})
+        if self.path == "/api/v1/recordings/7/transcribe":
+            if not self._authed():
+                return self._send(401, {"status": "KO"})
+            FakeServer.transcribe_bodies.append(json.loads(body or b"{}"))
+            FakeServer.version += 1  # a new transcript: completed_at changes
+            return self._send(202, {"job_id": 1, "status": "QUEUED"})
         self._send(404, {"error": "not found"})
 
     def do_GET(self):
@@ -87,7 +94,8 @@ class FakeServer(BaseHTTPRequestHandler):
         if self.path.startswith("/api/v1/recordings/7"):
             return self._send(200, {"id": 7, "title": "Team sync", "status": "COMPLETED",
                                     "audio_duration": 62.0, "participants": "Alice",
-                                    "updated_at": f"2026-11-27T10:00:0{FakeServer.version}.000000Z"})
+                                    "updated_at": f"2026-11-27T10:00:0{FakeServer.version}.000000Z",
+                                    "completed_at": f"2026-11-27T10:00:0{FakeServer.version}.000000Z"})
         self._send(404, {"error": "not found"})
 
 
@@ -99,6 +107,7 @@ def fake_server():
     FakeServer.version = 1
     FakeServer.transcript_text = ["Hello team", "Let us start"]
     FakeServer.removed = False
+    FakeServer.transcribe_bodies = []
     httpd = ThreadingHTTPServer(("127.0.0.1", 0), FakeServer)
     thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     thread.start()
