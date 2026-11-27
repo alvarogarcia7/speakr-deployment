@@ -33,26 +33,13 @@ Needs Docker with the Compose v2 plugin (`docker compose version`). Without it, 
 
 ## Start automatically at boot
 
-Pick one of the two:
-
-**systemd unit (recommended on Ubuntu)**
+Installs a systemd unit (`systemd/speakr.service.in` becomes `/etc/systemd/system/speakr.service`). At boot, after Docker and the network are up, it runs `docker compose up -d` here; on stop or shutdown, `docker compose down`.
 
 ```bash
-make service-install      # sudo systemctl start|stop|restart speakr
+make service-install      # sudo; then sudo systemctl start|stop|restart speakr
 make service-status
 make service-uninstall
 ```
-
-`systemd/speakr.service.in` becomes `/etc/systemd/system/speakr.service`. At boot, after Docker and the network are up, it runs `docker compose up -d` here; on stop or shutdown, `docker compose down`.
-
-**init.d script**
-
-```bash
-make initd-install        # sudo service speakr start|stop|restart|status
-make initd-uninstall
-```
-
-`init.d/speakr.in` becomes `/etc/init.d/speakr`, and `update-rc.d` links it into the start runlevels (2 to 5) and the stop runlevels (0, 1, 6). It runs the same `docker compose up -d` and `down`. On Ubuntu, systemd runs init.d scripts through its compatibility layer, so `systemctl status speakr` also works. The Makefile refuses to install both, since that would start the stack twice.
 
 ## HTTPS
 

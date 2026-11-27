@@ -133,7 +133,6 @@ DOCKER_BIN   := $(shell command -v docker)
 service-install: setup ## Install and start the boot service (sudo)
 	@test -f authelia/users_database.yml || { echo "No login set yet: run 'make password' first"; exit 1; }
 	@test -n "$(DOCKER_BIN)" || { echo "docker not found in PATH"; exit 1; }
-	@test ! -f /etc/init.d/$(SERVICE) || { echo "The init.d script is installed; run 'make initd-uninstall' first"; exit 1; }
 	sed -e "s#@WORKDIR@#$(CURDIR)#g" -e "s#@DOCKER@#$(DOCKER_BIN)#g" systemd/$(SERVICE).service.in | sudo tee $(SERVICE_FILE) > /dev/null
 	sudo systemctl enable docker.service
 	sudo systemctl daemon-reload
@@ -152,38 +151,3 @@ service-status: ## Show the boot service and container state
 
 service-logs: ## Show the boot service's own log (start and stop runs)
 	journalctl -u $(SERVICE).service --no-pager -n 100
-# ---------------------------------------------------------------------------
-# Alternative: SysV init.d script (for machines or habits that use init.d)
-#
-# How it works:
-#   1. initd-install fills in init.d/$(SERVICE).in with this folder's path and
-#      the docker binary, and installs it as /etc/init.d/$(SERVICE).
-#   2. update-rc.d links it into runlevels 2-5 (start) and 0, 1, 6 (stop), so it
-#      runs `docker compose up -d` at boot and `docker compose down` at shutdown.
-#   3. On Ubuntu, systemd picks the script up automatically (systemd-sysv-generator),
-#      so `sudo service $(SERVICE) start|stop|status` works.
-#
-# Pick ONE of service-install (systemd unit, recommended on Ubuntu) or
-# initd-install. Installing both would start the stack twice.
-# ---------------------------------------------------------------------------
-INITD_FILE := /etc/init.d/$(SERVICE)
-
-.PHONY: initd-install initd-uninstall
-
-initd-install: setup ## Install the init.d script and start it (sudo)
-	@test -f authelia/users_database.yml || { echo "No login set yet: run 'make password' first"; exit 1; }
-	@test ! -f $(SERVICE_FILE) || { echo "The systemd unit is installed; run 'make service-uninstall' first"; exit 1; }
-	sed -e "s#@NAME@#$(SERVICE)#g" -e "s#@WORKDIR@#$(CURDIR)#g" -e "s#@DOCKER@#$(DOCKER_BIN)#g" init.d/$(SERVICE).in | sudo tee $(INITD_FILE) > /dev/null
-	sudo chmod 755 $(INITD_FILE)
-	sudo update-rc.d $(SERVICE) defaults
-	sudo systemctl enable docker.service 2>/dev/null || true
-	sudo systemctl daemon-reload 2>/dev/null || true
-	sudo service $(SERVICE) start
-	@echo "Installed. Control it with: sudo service $(SERVICE) start|stop|restart|status"
-
-initd-uninstall: ## Stop and remove the init.d script (sudo)
-	-sudo service $(SERVICE) stop
-	sudo update-rc.d -f $(SERVICE) remove
-	sudo rm -f $(INITD_FILE)
-	sudo systemctl daemon-reload 2>/dev/null || true
-	@echo "Removed. Data, models and the password are untouched."
