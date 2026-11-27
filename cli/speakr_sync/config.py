@@ -197,7 +197,7 @@ def load_folder_config(folder: Path) -> FolderConfig:
         max_speakers=max_s,
         attributes=dict(attributes),
         extensions=exts,
-        output_dir=Path(str(raw.get("output_dir") or "transcripts")),
+        output_dir=Path(os.path.expanduser(str(raw.get("output_dir") or "transcripts"))),  # ~ and absolute paths allowed
         transforms=transforms,
         show_timestamps=bool(raw.get("show_timestamps", True)),
         config_file=cfg_path,

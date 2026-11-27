@@ -69,3 +69,11 @@ def test_upload_fields_reject_unknown_attribute(tmp_path):
 
     with pytest.raises(SpeakrError):
         upload_fields({"nonsense": 1})
+
+
+def test_output_dir_accepts_home_and_absolute_paths(tmp_path, monkeypatch):
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    write(tmp_path / "rec" / ".speakr-sync.yaml", "output_dir: ~/Documents/out\n")
+    assert load_folder_config(tmp_path / "rec").output_path == tmp_path / "home" / "Documents" / "out"
+    write(tmp_path / "rec" / ".speakr-sync.yaml", f"output_dir: {tmp_path / 'abs'}\n")
+    assert load_folder_config(tmp_path / "rec").output_path == tmp_path / "abs"

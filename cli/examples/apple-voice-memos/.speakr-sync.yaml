@@ -1,0 +1,34 @@
+# speakr-sync folder config for Apple Voice Memos (macOS).
+#
+# Copy this file to the Voice Memos recordings folder as .speakr-sync.yaml:
+#   ~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/
+# (macOS may ask for permission: allow Terminal or your Python app under
+#  System Settings > Privacy & Security > Files and Folders / Full Disk Access.)
+#
+# Then add the folder to the global config (~/.config/speakr-sync/config.yaml):
+#   folders:
+#     - "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings"
+
+language: en                 # recordings are in English; empty = auto-detect
+transcription_model:
+hotwords: ""
+initial_prompt: ""
+min_speakers:
+max_speakers:
+
+# Speakr titles the recording itself; the file name is not used as a title.
+attributes:
+  notes: "Apple Voice Memos"
+
+# Voice Memos records .m4a files. Only top-level .m4a files are picked up:
+# edited memos live in *.composition folders, and iCloud placeholders (*.icloud) are skipped.
+extensions:
+  - .m4a
+
+# Transcripts go to a folder outside the Voice Memos folder, so the app's own
+# library and iCloud sync never see them.
+output_dir: ~/Documents/speakr-transcripts/voice-memos
+show_timestamps: true
+
+transforms:
+  - drop_speakers_if_single   # a voice memo is usually one speaker

@@ -1,0 +1,13 @@
+# Global speakr-sync config for a Mac, with the Apple Voice Memos folder.
+# Save as ~/.config/speakr-sync/config.yaml (or pass --config).
+server:
+  url: https://speakr.example.lan:8446      # your Speakr PUBLIC_URL
+  username: admin
+  api_token_env: SPEAKR_API_TOKEN           # export it in your shell, not in this file
+  ca_bundle: ~/Documents/speakr-ca.crt       # caddy/certs/ca.crt copied from the server
+state_file: ~/Library/Application Support/speakr-sync/state.sqlite3
+refresh_seconds: 60
+settle_seconds: 30        # a memo still being recorded is not sent until it stops changing
+wait_minutes: 240
+folders:
+  - "~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings"
