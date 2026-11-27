@@ -1,4 +1,7 @@
-"""One sync pass: send new files, then fetch the transcripts of finished jobs."""
+"""One sync pass: send new files, then fetch the transcripts of finished jobs.
+
+Every step that happens to a file is also written to its log, <name>.log.md (see filelog.py).
+"""
 
 from __future__ import annotations
 
@@ -8,6 +11,7 @@ import logging
 import time
 from pathlib import Path
 
+from . import filelog, voice_memos
 from .api import SpeakrClient, SpeakrError, upload_fields
 from .config import AppConfig, FolderConfig, load_folder_config
 from .outputs import write_outputs
@@ -70,6 +74,24 @@ class Syncer:
             self.folders[key] = load_folder_config(key)
         return self.folders[key]
 
+    def _note(self, sha256: str, message: str) -> None:
+        """Add one line to the file's log. The log file is created on first use."""
+        rec = self.state.get(sha256)
+        if rec is None:
+            return
+        if not rec.get("log_md"):
+            folder = self._folder_for(rec["folder"])
+            path = filelog.new_log_path(folder.output_path, Path(rec["local_path"]).stem, sha256)
+            self.state.save(sha256, log_md=str(path))
+            rec["log_md"] = str(path)
+        filelog.append(Path(rec["log_md"]), rec, message)
+
+    def _apple_note(self, folder: FolderConfig, rec: dict) -> None:
+        if folder.apple_transcript:
+            self._note(rec["sha256"], f"Apple transcript: {voice_memos.describe(Path(rec['local_path']))}")
+        else:
+            self._note(rec["sha256"], "Apple transcript: not included (apple_transcript is false in this folder's config)")
+
     def submit(self) -> int:
         """Upload files not seen before. Returns how many uploads were made."""
         uploaded = 0
@@ -87,17 +109,23 @@ class Syncer:
                         log.debug("skip %s: already sent (%s)", path.name, rec["status"])
                     continue
                 where = dict(local_path=str(path), folder=str(folder.path))
+                fields = upload_fields(folder)
                 try:
-                    recording_id = self.client.upload(path, upload_fields(folder), idempotency_key=sha)
+                    recording_id = self.client.upload(path, fields, idempotency_key=sha)
                 except SpeakrError as exc:
                     log.error("upload failed for %s: %s", path.name, exc)
                     self.state.save(sha, **where, status="error", error=str(exc))
+                    self._note(sha, f"upload failed: {exc} (retried on the next pass)")
                     continue
                 log.info("uploaded %s as recording %d", path.name, recording_id)
                 self.state.save(
                     sha, **where, status="pending", recording_id=recording_id,
                     error=None, uploaded_at=now_iso(),
                 )
+                self._note(sha, (
+                    f"sent to Speakr as recording {recording_id} "
+                    f"(fields: {', '.join(sorted(fields)) or 'none'}; idempotency key {sha[:12]}...)"
+                ))
                 uploaded += 1
         return uploaded
 
@@ -112,18 +140,25 @@ class Syncer:
                 log.warning("cannot read status of %s: %s", name, exc)
                 continue
             state = str(status.get("status") or "").upper()
+            stage = status.get("stage") or "waiting"
+            if state != rec.get("last_status"):
+                self._note(rec["sha256"], f"Speakr status: {state or 'unknown'} ({stage})")
+                self.state.save(rec["sha256"], last_status=state)
+                rec["last_status"] = state
             if state in FAILED_STATES:
                 message = status.get("error") or status.get("stage_detail") or state
                 log.error("server failed to process %s: %s", name, message)
                 self.state.save(rec["sha256"], status="failed", error=str(message))
+                self._note(rec["sha256"], f"Speakr failed the job: {message}")
                 continue
             if state != "COMPLETED":
-                log.info("%s: %s (%s)", name, state or "unknown", status.get("stage") or "waiting")
+                log.info("%s: %s (%s)", name, state or "unknown", stage)
                 continue
             try:
                 self._finish(rec)
             except SpeakrError as exc:
                 log.warning("could not download the result of %s yet: %s", name, exc)
+                self._note(rec["sha256"], f"could not download the result yet: {exc}")
                 continue
             finished += 1
         return finished
@@ -136,15 +171,25 @@ class Syncer:
         raw = self.client.transcript(rec["recording_id"])
         paths = write_outputs(folder, rec, info, raw, self.app.server.url)
         first_time = rec["status"] != "done"
+        new_updated_at = updated_at or info.get("updated_at")
         self.state.save(
             rec["sha256"], status="done", error=None,
             completed_at=now_iso() if first_time else rec.get("completed_at"),
             raw_json=paths["raw_json"], job_md=paths["job_md"], transcript_md=paths["transcript_md"],
             info_json=json.dumps(info, ensure_ascii=False),
-            remote_updated_at=updated_at or info.get("updated_at"),
+            remote_updated_at=new_updated_at,
         )
         verb = "done" if first_time else "updated"
         log.info("%s: %s -> %s", verb, Path(rec["local_path"]).name, paths["job_md"])
+        if first_time:
+            self._note(rec["sha256"], f"transcript downloaded ({len(raw.get('segments') or [])} segments)")
+        else:
+            self._note(rec["sha256"], (
+                f"edited on the server (updated_at {rec.get('remote_updated_at')} -> {new_updated_at}); "
+                "outputs rewritten"
+            ))
+        self._apple_note(folder, rec)
+        self._note(rec["sha256"], f"outputs written: {paths['job_md']}, {paths['transcript_md']}")
 
     def refresh(self) -> int:
         """Re-fetch finished recordings that were edited on the server, using Speakr's change feed.
@@ -174,6 +219,7 @@ class Syncer:
                         log.info("%s was removed on the server (%s); the local file is kept",
                                  Path(rec["local_path"]).name, reason)
                         self.state.save(rec["sha256"], status="removed", error=f"removed on the server ({reason})")
+                        self._note(rec["sha256"], f"removed on the server ({reason}); local file kept, not sent again")
             cursor = body.get("next_cursor") or cursor
             self.state.set_meta("changes_cursor", cursor)
             if not body.get("has_more"):
@@ -194,9 +240,11 @@ class Syncer:
         folder = self._folder_for(rec["folder"])
         recording_id = rec["recording_id"]
         before = self.client.recording(recording_id).get("completed_at")
-        self.client.transcribe(recording_id, transcription_options(folder))
+        options = transcription_options(folder)
+        self.client.transcribe(recording_id, options)
         self.state.save(rec["sha256"], status="pending", error=None)
         log.info("queued a new transcription of %s (recording %d)", name, recording_id)
+        self._note(rec["sha256"], f"new transcription requested with settings {json.dumps(options)}")
 
         deadline = time.monotonic() + timeout_seconds
         while time.monotonic() < deadline:
@@ -207,6 +255,7 @@ class Syncer:
                 message = status.get("error") or status.get("stage_detail") or state
                 self.state.save(rec["sha256"], status="failed", error=str(message))
                 log.error("server failed the new transcription of %s: %s", name, message)
+                self._note(rec["sha256"], f"Speakr failed the new transcription: {message}")
                 return False
             if state == "COMPLETED":
                 info = self.client.recording(recording_id)
@@ -214,6 +263,7 @@ class Syncer:
                     self._finish(rec, updated_at=info.get("updated_at"))
                     return True
         log.warning("%s is still being transcribed; run or watch will pick the result up", name)
+        self._note(rec["sha256"], "still being transcribed when the wait ended; run or watch will pick it up")
         return False
 
     def rerender(self) -> int:
@@ -223,6 +273,8 @@ class Syncer:
             folder = self._folder_for(rec["folder"])
             raw = json.loads(Path(rec["raw_json"]).read_text(encoding="utf-8"))
             info = json.loads(rec.get("info_json") or "{}")
-            write_outputs(folder, rec, info, raw, self.app.server.url)
+            paths = write_outputs(folder, rec, info, raw, self.app.server.url)
+            self._note(rec["sha256"], "outputs rewritten from the stored JSON with the current settings")
+            self._apple_note(folder, rec)
             count += 1
         return count

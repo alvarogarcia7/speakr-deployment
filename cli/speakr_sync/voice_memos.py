@@ -98,3 +98,25 @@ def render_section(paragraphs: list[Paragraph] | None) -> str:
         prefix = f"**[{fmt_time(p.start)}]** " if p.start is not None else ""
         lines += [f"{prefix}{p.text}", ""]
     return "\n".join(lines).rstrip() + "\n"
+
+
+def describe(path: Path) -> str:
+    """One line for the file log: what the Voice Memos transcript of this file looks like, or why there is none."""
+    try:
+        data = path.read_bytes()
+    except OSError as exc:
+        return f"cannot read the file: {exc}"
+    idx = data.find(MARKER)
+    if idx < 0:
+        return f"no Voice Memos transcript in this file ({len(data)} bytes, no 'tsrp' atom)"
+    obj = _parse_json(data)
+    if obj is None:
+        return f"'tsrp' atom at byte {idx}, but its JSON could not be read"
+    attributed = obj.get("attributedString")
+    if not isinstance(attributed, dict):
+        return f"'tsrp' JSON has no attributedString (keys: {', '.join(sorted(obj))})"
+    words = _words(attributed)
+    if not words:
+        return f"attributedString has no words (keys: {', '.join(sorted(attributed))})"
+    paragraphs = read_transcript(path) or []
+    return f"Voice Memos transcript read: {len(words)} words, {len(paragraphs)} paragraphs"

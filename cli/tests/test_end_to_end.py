@@ -195,3 +195,39 @@ def test_retranscribe_unknown_file_is_an_error(tmp_path, fake_server, monkeypatc
     assert main(["--config", str(config), "retranscribe", "nope.mp3"]) == 1
     assert "not a finished recording" in capsys.readouterr().err
     assert FakeServer.transcribe_bodies == []
+
+
+def test_file_log_records_each_step(tmp_path, fake_server, monkeypatch):
+    monkeypatch.setenv("SPEAKR_PASSWORD", PASSWORD)
+    monkeypatch.setenv("SPEAKR_API_TOKEN", TOKEN)
+    folder, config = make_setup(tmp_path, fake_server)
+    assert main(["--config", str(config), "run"]) == 0
+    log_text = (folder / "transcripts" / "meeting one.log.md").read_text(encoding="utf-8")
+    assert log_text.startswith("# Log: meeting one.mp3")
+    assert "sent to Speakr as recording 7" in log_text
+    assert "Speakr status: COMPLETED" in log_text
+    assert "transcript downloaded (2 segments)" in log_text
+    assert "Apple transcript: not included" in log_text
+    assert "outputs written:" in log_text
+
+    # an edit on the server is logged with the old and new update times
+    FakeServer.transcript_text = ["Edited"]
+    FakeServer.version += 1
+    assert main(["--config", str(config), "run", "--no-wait"]) == 0
+    log_text = (folder / "transcripts" / "meeting one.log.md").read_text(encoding="utf-8")
+    assert "edited on the server" in log_text
+
+
+def test_file_log_shows_the_apple_transcript_result(tmp_path, fake_server, monkeypatch):
+    import json as _json
+
+    monkeypatch.setenv("SPEAKR_PASSWORD", PASSWORD)
+    monkeypatch.setenv("SPEAKR_API_TOKEN", TOKEN)
+    folder, config = make_setup(tmp_path, fake_server)
+    (folder / ".speakr-sync.yaml").write_text("apple_transcript: true\n", encoding="utf-8")
+    apple = {"attributedString": {"runs": [" Apple", 0, " words.", 1],
+                                  "attributeTable": [{"timeRange": [0, 0.5]}, {"timeRange": [0.5, 1.0]}]}}
+    (folder / "meeting one.mp3").write_bytes(b"\x00" * 50 + b"tsrp" + _json.dumps(apple).encode())
+    assert main(["--config", str(config), "run"]) == 0
+    log_text = (folder / "transcripts" / "meeting one.log.md").read_text(encoding="utf-8")
+    assert "Apple transcript: Voice Memos transcript read: 2 words, 1 paragraphs" in log_text

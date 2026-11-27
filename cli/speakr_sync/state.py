@@ -35,8 +35,9 @@ META_SCHEMA = "CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT
 COLUMNS = (
     "local_path", "folder", "status", "recording_id", "error",
     "uploaded_at", "completed_at", "raw_json", "job_md", "transcript_md", "info_json",
-    "remote_updated_at",
+    "remote_updated_at", "log_md", "last_status",
 )
+EXTRA_COLUMNS = ("remote_updated_at", "log_md", "last_status")
 
 
 class State:
@@ -48,8 +49,9 @@ class State:
         self.db.execute(SCHEMA)
         self.db.execute(META_SCHEMA)
         columns = {row["name"] for row in self.db.execute("PRAGMA table_info(files)")}
-        if "remote_updated_at" not in columns:  # state files created before the change feed existed
-            self.db.execute("ALTER TABLE files ADD COLUMN remote_updated_at TEXT")
+        for column in EXTRA_COLUMNS:  # state files created by older versions get the new columns
+            if column not in columns:
+                self.db.execute(f"ALTER TABLE files ADD COLUMN {column} TEXT")
         self.db.commit()
 
     def close(self) -> None:

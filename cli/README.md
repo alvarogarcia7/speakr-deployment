@@ -114,6 +114,9 @@ For every file, in `output_dir` next to the audio:
 - `<name>.transcript.md`: the transcript after the transforms, one line per segment:
   `[00:01:23] **Alice:** text`.
 - `raw/<name>.json`: the transcript as Speakr returned it. `rerender` uses this file.
+- `<name>.log.md`: what happened to this file, one line per step: sent (with the Speakr recording id), each
+  status change, the transcript download, edits and deletions on the server, retranscription, and the
+  Apple Voice Memos transcript (whether it was included, and what was found in the file).
 
 ## Apple Voice Memos transcript
 
